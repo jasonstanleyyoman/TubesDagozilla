@@ -1,0 +1,29 @@
+
+<?xml version="1.0" ?>
+<sdf version='1.5'>
+  <world name='RoboCup15MSL'>
+	<include>
+		<uri>model://sun</uri>
+	</include>
+	<include>
+		<uri>model://ground_plane</uri>
+	</include>
+
+	<include>
+		<uri>model://robocup_3Dsim_field</uri>
+	</include>
+	<include>
+		<pose>-4.5 0 0 0 0 3.1416</pose>
+		<uri>model://robocup_3Dsim_goal</uri>
+	</include>
+	<include>
+		<pose>4.5 0 0 0 0 0</pose>
+		<uri>model://robocup_3Dsim_goal</uri>
+	</include>
+	<include>
+		<uri>model://robocup_3Dsim_ball</uri>
+	</include>
+
+  </world>
+</sdf>
+

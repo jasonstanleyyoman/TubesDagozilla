@@ -1,0 +1,27 @@
+<?xml version="1.0" ?>
+<sdf version="1.5">
+  <model name="Robot Tubes">
+    <link name="link">
+      
+
+      <visual name="visual">
+        <geometry>
+          <mesh>
+
+            <uri>model://robot/meshes/desainhampirfix.stl</uri>
+	    <scale>0.01 0.01 0.01</scale>
+          </mesh>
+        </geometry>
+      </visual>
+
+      <collision name="collision">
+        <geometry>
+          <mesh>
+            <uri>model://robot/meshes/desainhampirfix.stl</uri>
+	    <scale>0.01 0.01 0.01</scale>
+          </mesh>
+        </geometry>
+      </collision>
+    </link>
+  </model>
+</sdf>
