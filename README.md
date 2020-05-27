@@ -1,4 +1,10 @@
 # TubesDagozilla
+**Prerequisite**
+Turtlebot3 ros melodic
+```sh
+sudo apt-get install ros-melodic-turtlebot3-description
+```
+
 **Simulate Fetching Ball**
 ```sh
 roslaunch robot_gazebo field.launch
