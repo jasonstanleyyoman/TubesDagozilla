@@ -4,6 +4,9 @@ Turtlebot3 ros melodic
 ```sh
 sudo apt-get install ros-melodic-turtlebot3-description
 ```
+```sh
+sudo apt-get install ros-melodic-turtlebot3-teleop
+```
 
 **Simulate Fetching Ball**
 ```sh
