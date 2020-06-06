@@ -1,0 +1,27 @@
+<launch>
+	<include file="$(find gazebo_ros)/launch/empty_world.launch">
+	    <arg name="world_name" value="$(find robot_gazebo)/worlds/field.world"/>
+	    <arg name="paused" value="false"/>
+	    <arg name="use_sim_time" value="true"/>
+	    <arg name="gui" value="true"/>
+	    <arg name="recording" value="false"/>
+	    <arg name="debug" value="false"/>
+  	</include>
+
+	<arg name="robot_name1"  value="robot1" />
+	<arg name="init_pose1" value="-x 1 -y 0 -z 0" />
+	<arg name="robot_name2"  value="robot2" />
+	<arg name="init_pose2" value="-x 2 -y 0 -z 0" />
+	<param name="robot_description" command="$(find xacro)/xacro --inorder $(find turtlebot3_description)/urdf/turtlebot3_burger.urdf.xacro" />
+
+	<group ns="robot1">
+		<node name="spawn_minibot_model" pkg="gazebo_ros" type="spawn_model"
+     args="$(arg init_pose1) -urdf -param /robot_description -model $(arg robot_name1)"
+     respawn="false" output="screen" />
+  	</group>
+	<group ns="robot2">
+		<node name="spawn_minibot_model" pkg="gazebo_ros" type="spawn_model"
+     args="$(arg init_pose2) -urdf -param /robot_description -model $(arg robot_name2)"
+     respawn="false" output="screen" />
+  	</group>
+</launch>

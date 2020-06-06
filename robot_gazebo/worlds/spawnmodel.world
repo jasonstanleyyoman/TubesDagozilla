@@ -22,9 +22,10 @@
 	</include>
 	<include>
 		<uri>model://robocup_3Dsim_ball</uri>
+		<name>ball</name>
 	</include>
 	
-
+	<plugin name="game_plugin" filename="libgame_plugin.so"/>
   </world>
 </sdf>
 

@@ -55,12 +55,8 @@ class PVector():
 		if(self.mag() > value):
 			self.normalize()
 			self.mult(value)
-
-
 	def __str__(self):
 		return "This vector has components : x : {}, y : {}".format(self.x,self.y)
-
-
 	@staticmethod
 	def addVector(vectorA,vectorB):
 		return PVector(vectorA.x + vectorB.x, vectorA.y + vectorB.y)
@@ -107,13 +103,17 @@ class Callback():
 	def compute(self):
 		rospy.loginfo("computed called")
 		if self.ballPosition != None and self.robotPosition != None:
-			(roll,pitch,yaw) = euler_from_quaternion([self.robotPosition.orientation.x,self.robotPosition.orientation.y,self.robotPosition.orientation.z,self.robotPosition.orientation.w])
+			
 			
 			ballVector = PVector(self.ballPosition.point.x,self.ballPosition.point.y)
 			robotVector = PVector(self.robotPosition.point.x,self.robotPosition.point.y)
-			velocityVector = PVector(self.robotPosition.twist.linear.x * math.cos(yaw),self.robotPosition.twist.linear.x * math.sin(yaw))
-			robotOrientationVector = PVector(math.cos(yaw),math.sin(yaw))
 			desired = PVector.subVector(ballVector,robotVector)
+
+			(roll,pitch,yaw) = euler_from_quaternion([self.robotPosition.orientation.x,self.robotPosition.orientation.y,self.robotPosition.orientation.z,self.robotPosition.orientation.w])
+			velocityVector = PVector(self.robotPosition.twist.linear.x * math.cos(yaw),self.robotPosition.twist.linear.x * math.sin(yaw))
+
+			robotOrientationVector = PVector(math.cos(yaw),math.sin(yaw))
+			
 			desired.normalize()
 			
 			
@@ -122,7 +122,9 @@ class Callback():
 			if distance < 1.5:
 				multiplier = translate(distance,0,0.2,0,robotMaxSpeed)
 				desired.mult(multiplier)
+
 				steer = PVector.subVector(desired,velocityVector)
+
 				steer.limit(robotMaxStoppingForce)
 				
 			else:
@@ -144,8 +146,12 @@ class Callback():
 			if(linearAcceleration > robotMaxLinearAcceleration):
 				linearAcceleration = robotMaxLinearAcceleration
 			linearAcceleration = linearAcceleration * dt
+
+			
 			angularForce = math.sin(angleBetween) * steer.mag()
 			
+
+
 			if(robotOrientationVector.x == 0):
 				angle = math.radians(90)
 			else:
@@ -162,7 +168,12 @@ class Callback():
 			else:
 				angularVelocity =  translate(angularForce,0,maxSteeringForce,0,robotMaxAngularSpeed)
 			
+			
+
+
 			twist = Twist()
+
+
 			if abs(self.robotPosition.twist.linear.x + linearAcceleration) > robotMaxSpeed:
 				if self.robotPosition.twist.linear.x + linearAcceleration < 0:
 					twist.linear.x = -1 * robotMaxSpeed
@@ -170,6 +181,9 @@ class Callback():
 					twist.linear.x =  robotMaxSpeed
 			else:
 				twist.linear.x = self.robotPosition.twist.linear.x + linearAcceleration
+
+
+				
 			twist.linear.y = 0
 			twist.linear.z = 0
 

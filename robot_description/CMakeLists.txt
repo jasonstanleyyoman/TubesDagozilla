@@ -2,7 +2,18 @@ cmake_minimum_required(VERSION 3.0.2)
 project(robot_description)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-# add_compile_options(-std=c++11)
+add_compile_options(-std=c++11)
+
+include(CheckCXXCompilerFlag)
+CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
+CHECK_CXX_COMPILER_FLAG("-std=c++0x" COMPILER_SUPPORTS_CXX0X)
+if(COMPILER_SUPPORTS_CXX11)
+    set(CMAKE_CXX_FLAGS "-std=c++11")
+elseif(COMPILER_SUPPORTS_CXX0X)
+    set(CMAKE_CXX_FLAGS "-std=c++0x")
+else()
+    message(FATAL_ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
+endif()
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -10,7 +21,13 @@ project(robot_description)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
+  robot_control
+  gazebo_ros
 )
+
+find_package(gazebo REQUIRED)
+link_directories(${GAZEBO_LIBRARY_DIRS})
+include_directories(${Boost_INCLUDE_DIR} ${catkin_INCLUDE_DIRS} ${GAZEBO_INCLUDE_DIRS})
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -203,3 +220,14 @@ include_directories(
 
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
+add_library(robot_plugin src/robot_plugin.cpp)
+target_link_libraries(robot_plugin ${catkin_LIBRARIES} ${GAZEBO_LIBRARIES})
+add_library(game_plugin src/game_plugin.cpp)
+target_link_libraries(game_plugin ${catkin_LIBRARIES} ${GAZEBO_LIBRARIES})
+catkin_package(
+  DEPENDS
+    rospy
+    roscpp
+    gazebo_ros
+    robot_control
+)
