@@ -33,6 +33,13 @@ namespace gazebo
 
 			this->robotName = this->model->GetName();
 			this->team = this->robotName[0];
+
+			if(this->team == "A"){
+				this->goalX = -4.5;
+			}else{
+				this->goalX = 4.5;
+			}
+			this->goalY = 0;
 			
 			this->model->SetWorldPose(im::Pose3d(this->model->WorldPose().Pos().X(),this->model->WorldPose().Pos().Y(),0,0,0,0.1));
 
@@ -108,16 +115,16 @@ namespace gazebo
 	    		moveToBall();
 	    	}else if(this->has_ball){
 	    		if(this->curBallPosTeam == "B"){
-	    			moveTo(3,0,0,false);	
+	    			moveAndShoot(2,2);	
 	    		}else{
-	    			moveTo(-3,0,pi,false);	
+	    			moveAndShoot(-2,2);	
 	    		}
 	    		
 	    	}else{
 	    		if(this->curBallPosTeam == "A"){
-	    			moveTo(4,4,0,false);	
+	    			moveTo(4,4,0);	
 	    		}else{
-	    			moveTo(-4,4,pi,false);	
+	    			moveTo(-4,4,pi);	
 	    		}
 	    	}
 	    	
@@ -135,7 +142,7 @@ namespace gazebo
 	    }
 		
 		private:
-			void moveTo(double x, double y,double orientation,bool isBall){
+			void moveTo(double x, double y,double orientation){
 				im::Vector2d target(x,y);
 				im::Vector2d desired = target - this->position;
 				desired.Normalize();
@@ -151,40 +158,23 @@ namespace gazebo
 					newSpeed.Normalize();
 					newSpeed*=this->maxSpeed;
 				}
-				if(isBall){
-					im::Angle desiredOrientation(atan2(desired.Y(),desired.X()));
-					
-					if(desiredOrientation.Radian() < 0){
-						desiredOrientation += 2 * pi;
-					}
-					if(abs(desiredOrientation.Radian() - this->rotation.Radian()) < 0.01){
-						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),0)
-					}else{
-						if(desiredOrientation.Radian() - this->rotation.Radian() > 0){
-							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),3)
-						}else{
-							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-3)
-						}
-					}
-						
+				if(abs(orientation - this->rotation.Radian()) < 0.01){
+					applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),0);
 				}else{
-					if(abs(orientation - this->rotation.Radian()) < 0.01){
-						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),0)
+					if(orientation - this->rotation.Radian() > 0){
+						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),3);
 					}else{
-						if(orientation - this->rotation.Radian() > 0){
-							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),3)
-						}else{
-							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-3)
-						}
-						
+						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-3);
 					}
-
-					if(this->position.Distance(target) <= 0.01 and abs(orientation - this->rotation.Radian()) < 0.01){
-						this->readyToShoot = true;
-					}
+					
 				}
+
+				if(this->position.Distance(target) <= 0.01 and abs(orientation - this->rotation.Radian()) < 0.01){
+					this->readyToShoot = true;
+				}
+			}
 				
-			}	
+		
 		
 			
 			void moveToBall(){
@@ -204,13 +194,13 @@ namespace gazebo
 				if(desiredOrientation.Radian() < 0){
 					desiredOrientation += 2 * pi;
 				}
-				if(abs(desiredOrientation.Radian() - this->rotation.Radian()) < 0.01){
-					applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),0)
+				if(abs(desiredOrientation.Radian() - this->rotation.Radian()) < 0.1){
+					applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),0);
 				}else{
 					if(desiredOrientation.Radian() - this->rotation.Radian() > 0){
-						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),3)
+						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),4);
 					}else{
-						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-3)
+						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-4);
 					}
 				}
 			}
@@ -227,10 +217,29 @@ namespace gazebo
 
 				im::Vector2d newSpeed(xSpeed,ySpeed);
 
-				
+				im::Angle desiredOrientation(atan2(this->goalY - y,this->goalX - x));
+				if(desiredOrientation.Radian() < 0){
+					desiredOrientation += 2 * pi;
+				}
+
+				if(abs(desiredOrientation.Radian() - this->rotation.Radian()) < 0.1){
+					applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),0);
+				}else{
+					if(desiredOrientation.Radian() - this->rotation.Radian() > 0){
+						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),3);
+					}else{
+						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-3);
+					}
+				}
+
+				if(this->position.Distance(target) <= 0.01 and abs(desiredOrientation.Radian() - this->rotation.Radian()) < 0.1){
+						this->readyToShoot = true;
+				}
+
+
 			}
 			void applyLinearAngularSpeed(double x, double y, double angular){
-				this->model->SetWorldTwist(im::Vector3d(x,y,0),im::Vector3d(0,0,-3));
+				this->model->SetWorldTwist(im::Vector3d(x,y,0),im::Vector3d(0,0,angular));
 			}
 			
 		
@@ -248,15 +257,17 @@ namespace gazebo
 				double x = this->position.X() + (this->radius + this->ballRadius) * cos(this->rotation.Radian());
 				double y = this->position.Y() + (this->radius + this->ballRadius) * sin(this->rotation.Radian());
 				this->ballModel->SetWorldPose(im::Pose3d(x,y,0,0,0,0));
+				this->ballModel->SetWorldTwist(im::Vector3d(0,0,0), im::Vector3d(0,0,0));
 			}
 
 			void shoot(){
-				if(this->has_ball and this->curBallPosTeam == "A"){
+				if(this->has_ball){
 					this->has_ball = false;
-					this->ballModel->SetWorldTwist(im::Vector3d(-2,0,3),im::Vector3d(0,0,0));	
-				}else if(this->has_ball){
-					this->has_ball = false;
-					this->ballModel->SetWorldTwist(im::Vector3d(2,0,3),im::Vector3d(0,0,0));
+					im::Vector2d speed(cos(this->rotation.Radian()),sin(this->rotation.Radian()));
+					double goalDistance = this->position.Distance(im::Vector2d(this->goalX,this->goalY));
+					speed *= goalDistance;
+
+					this->ballModel->SetWorldTwist(im::Vector3d(speed.X(),speed.Y(),goalDistance),im::Vector3d(0,0,0));	
 				}
 				
 			}
@@ -320,6 +331,9 @@ namespace gazebo
 
 	    	
 	    	int timeEndShoot = 0;
+
+	    	double goalX;
+	    	double goalY;
 
 	  
 	};

@@ -52,13 +52,15 @@ namespace gazebo{
 			
 			publishBallMessage();
 			if(checkGoal()){
+				double ballX;
+				if(this->ballModel->WorldPose().Pos().X() < -4.5){
+					ballX = -0.5;
+				}else{
+					ballX = 0.5;
+				}
 				this->world->Reset();
 				this->world->ResetPhysicsStates();
-				if(this->ballModel->WorldPose().Pos().X() < -4.5){
-					this->ballModel->SetWorldPose(im::Pose3d(0.5,0,0,0,0,0));
-				}else{
-					this->ballModel->SetWorldPose(im::Pose3d(-0.5,0,0,0,0,0));
-				}
+				this->ballModel->SetWorldPose(im::Pose3d(ballX,0,0,0,0,0));
 				
 			}
 

@@ -11,7 +11,7 @@
     <arg name="debug" value="false"/>
   </include>
 
-	<node name="spawn_urdf_AROBOT1" pkg="gazebo_ros" type="spawn_model" args="-file $(find robot_description)/models/newrobot/model.sdf -sdf -z 0 -model ARobot1 -x 1 -y 0" />
+	<node name="spawn_urdf_AROBOT1" pkg="gazebo_ros" type="spawn_model" args="-file $(find robot_description)/models/newrobot/model.sdf -sdf -z 0 -model ARobot1 -x 2 -y 0" />
 
 	<node name="spawn_urdf_BROBOT1" pkg="gazebo_ros" type="spawn_model" args="-file $(find robot_description)/models/newrobot/model.sdf -sdf -z 0 -model BRobot1 -x -2 -y 0" />
 
