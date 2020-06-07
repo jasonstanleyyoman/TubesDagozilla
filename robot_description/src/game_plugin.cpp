@@ -34,6 +34,9 @@ namespace gazebo{
 			this->ballModel = this->world->ModelByName("ball");
 			
 			publishBallMessage();
+			if(checkGoal()){
+				this->world->Reset();
+			}
 			
 		}
 
@@ -46,6 +49,12 @@ namespace gazebo{
 			sent_message.twist.linear.y = this->ballModel->RelativeLinearVel().Y();
 			sent_message.twist.linear.z = this->ballModel->RelativeLinearVel().Z();
 			this->ball_position_publisher.publish(sent_message);
+		}
+		public : bool checkGoal(){
+			double ballX = this->ballModel->WorldPose().Pos().X();
+			double ballY = this->ballModel->WorldPose().Pos().Y();
+
+			return (ballY < 0.9 and ballY > -0.9 and (ballX < -4.5 or ballX > 4.5));
 		}
 
 		private: event::ConnectionPtr updateConnection;

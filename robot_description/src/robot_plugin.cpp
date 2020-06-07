@@ -4,7 +4,6 @@
 #include <gazebo/common/common.hh>
 #include <ignition/math/Vector3.hh>
 #include <ignition/math/Vector2.hh>
-#include <chrono>
 #include <ctime>
 #include <thread>
 #include "ros/callback_queue.h"
@@ -23,29 +22,28 @@ namespace gazebo
 	class RobotPlugin : public ModelPlugin{
 		public: void Load(physics::ModelPtr _parent, sdf::ElementPtr /*_sdf*/)
 	    {
-	      // Store the pointer to the model
+	      
 			this->model = _parent;
 			this->world = this->model->GetWorld();
 			this->ballModel = this->world->ModelByName("ball");
-			// Listen to the update event. This event is broadcast every
-			// simulation iteration.
-			this->model->SetWorldPose(ignition::math::Pose3d(this->model->WorldPose().Pos().X(),this->model->WorldPose().Pos().Y(),0,0,0,0));
-			this->updateConnection = event::Events::ConnectWorldUpdateBegin(
-			  std::bind(&RobotPlugin::OnUpdate, this));
+
 			this->robotName = this->model->GetName();
 			this->team = this->robotName[0];
+			
+			this->model->SetWorldPose(im::Pose3d(this->model->WorldPose().Pos().X(),this->model->WorldPose().Pos().Y(),0,0,0,0));
+
+			this->updateConnection = event::Events::ConnectWorldUpdateBegin(
+			  std::bind(&RobotPlugin::OnUpdate, this));
+
+
+			
 			if (!ros::isInitialized()){
 			  int argc = 0;
 			  char **argv = NULL;
-			  ros::init(argc, argv, "gazebo_client",
-			      ros::init_options::NoSigintHandler);
+			  ros::init(argc, argv, this->robotName ,ros::init_options::NoSigintHandler);
 			}
-			this->rosNode.reset(new ros::NodeHandle("robot_handler"));
-			ros::SubscribeOptions so = ros::SubscribeOptions::create<robot_control::ModelState>(
-		      "/ball_position",
-		      1,
-		      boost::bind(&RobotPlugin::BallCallback, this, _1),
-		      ros::VoidPtr(), &this->rosQueue);
+			this->rosNode.reset(new ros::NodeHandle(this->robotName));
+			ros::SubscribeOptions so = ros::SubscribeOptions::create<robot_control::ModelState>("/ball_position",1,boost::bind(&RobotPlugin::BallCallback, this, _1),ros::VoidPtr(), &this->rosQueue);
 			this->rosSub = this->rosNode->subscribe(so);
 			this->rosQueueThread = std::thread(std::bind(&RobotPlugin::QueueThread, this));
 
@@ -57,15 +55,21 @@ namespace gazebo
 	      this->position.Set(this->model->WorldPose().Pos().X(),this->model->WorldPose().Pos().Y());
 	      this->velocity.Set(this->model->RelativeLinearVel().X(),this->model->RelativeLinearVel().Y());
 	      this->rotation = this->model->WorldPose().Rot().Yaw();
+
+
 	      checkBallPossesion();
+
+
 	      if(this->has_ball and !this->readyToShoot){
 	      	moveBall();
 	      }
+
+
 	      if(this->readyToShoot){
 	      	
-	      	shoot();
 	      	if(this->timeEndShoot == 0){
 	      		this->timeEndShoot = time(NULL) + 1;	
+	      		shoot();
 	      	}else{
 	      		if(time(NULL) > this->timeEndShoot){
 	      			this->readyToShoot = false;
@@ -90,18 +94,18 @@ namespace gazebo
 		
 		private:
 			void moveTo(double x, double y,double orientation,bool isBall){
-				ignition::math::Vector2d target(x,y);
-				ignition::math::Vector2d desired = target - this->position;
+				im::Vector2d target(x,y);
+				im::Vector2d desired = target - this->position;
 				desired.Normalize();
 				desired *= this->maxSpeed;
 
-				ignition::math::Vector2d steer = desired - this->velocity;
+				im::Vector2d steer = desired - this->velocity;
 				double xSpeed = this->velocity.X() + steer.X() * 0.3;
 				double ySpeed = this->velocity.Y() + steer.Y() * 0.3;
 
-				ignition::math::Vector2d newSpeed(xSpeed,ySpeed);
+				im::Vector2d newSpeed(xSpeed,ySpeed);
 
-				if(newSpeed.Distance(ignition::math::Vector2d(0,0)) >= this->maxSpeed){
+				if(newSpeed.Distance(im::Vector2d(0,0)) >= this->maxSpeed){
 					newSpeed.Normalize();
 					newSpeed*=this->maxSpeed;
 				}
@@ -186,22 +190,16 @@ namespace gazebo
 	    private: std::thread rosQueueThread;
 
 	    private : 
-	    	double initialX;
-	    	double initialY;
 
+	    	im::Vector2d position;
 
+	    	im::Vector2d velocity;
 
-	    	ignition::math::Vector2d position;
-
-	    	ignition::math::Vector2d velocity;
-
-	    	ignition::math::Vector2d acceleration;
+	    	im::Vector2d acceleration;
 
 	    	im::Vector2d ballPosition;
 
-
-	    	
-	    	double rotation;
+			double rotation;
 
 	    	std::string robotName;
 	    	std::string team;

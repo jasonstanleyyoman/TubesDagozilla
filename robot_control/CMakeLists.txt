@@ -232,8 +232,7 @@ target_link_libraries(ball_position ${catkin_LIBRARIES})
 add_executable(enemy_position src/enemy_position.cpp)
 target_link_libraries(enemy_position ${catkin_LIBRARIES})
 
-add_library(${PROJECT_NAME} src/robot_plugin.cpp)
-target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${GAZEBO_LIBRARIES})
+
 
 catkin_install_python(PROGRAMS 
   src/fetch_ball.py 
