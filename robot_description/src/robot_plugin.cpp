@@ -104,9 +104,8 @@ namespace gazebo
 	    }
 	    public : void BallCallback(const robot_control::ModelState::ConstPtr &_msg){
 	    	this->ballPosition.Set(_msg->point.x,_msg->point.y);
-	    	std::cout << this->curBallPosTeam << std::endl;
 	    	if(!this->has_ball and this->curBallPosTeam ==  "None"){
-	    		moveTo(_msg->point.x,_msg->point.y,0,true);	
+	    		moveToBall();
 	    	}else if(this->has_ball){
 	    		if(this->curBallPosTeam == "B"){
 	    			moveTo(3,0,0,false);	
@@ -116,9 +115,9 @@ namespace gazebo
 	    		
 	    	}else{
 	    		if(this->curBallPosTeam == "A"){
-	    			moveTo(3,0,0,false);	
+	    			moveTo(4,4,0,false);	
 	    		}else{
-	    			moveTo(-3,0,pi,false);	
+	    			moveTo(-4,4,pi,false);	
 	    		}
 	    	}
 	    	
@@ -144,7 +143,7 @@ namespace gazebo
 
 				im::Vector2d steer = desired - this->velocity;
 				double xSpeed = this->velocity.X() + steer.X() * 0.7;
-				double ySpeed = this->velocity.Y() + steer.Y() * 0.8;
+				double ySpeed = this->velocity.Y() + steer.Y() * 0.7;
 
 				im::Vector2d newSpeed(xSpeed,ySpeed);
 
@@ -159,23 +158,23 @@ namespace gazebo
 						desiredOrientation += 2 * pi;
 					}
 					if(abs(desiredOrientation.Radian() - this->rotation.Radian()) < 0.01){
-						this->model->SetWorldTwist(im::Vector3d(newSpeed.X(),newSpeed.Y(),0),im::Vector3d(0,0,0));	
+						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),0)
 					}else{
 						if(desiredOrientation.Radian() - this->rotation.Radian() > 0){
-							this->model->SetWorldTwist(im::Vector3d(newSpeed.X(),newSpeed.Y(),0),im::Vector3d(0,0,2));	
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),3)
 						}else{
-							this->model->SetWorldTwist(im::Vector3d(newSpeed.X(),newSpeed.Y(),0),im::Vector3d(0,0,-2));	
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-3)
 						}
 					}
 						
 				}else{
 					if(abs(orientation - this->rotation.Radian()) < 0.01){
-						this->model->SetWorldTwist(im::Vector3d(newSpeed.X(),newSpeed.Y(),0),im::Vector3d(0,0,0));	
+						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),0)
 					}else{
 						if(orientation - this->rotation.Radian() > 0){
-							this->model->SetWorldTwist(im::Vector3d(newSpeed.X(),newSpeed.Y(),0),im::Vector3d(0,0,2));	
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),3)
 						}else{
-							this->model->SetWorldTwist(im::Vector3d(newSpeed.X(),newSpeed.Y(),0),im::Vector3d(0,0,-2));
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-3)
 						}
 						
 					}
@@ -188,12 +187,50 @@ namespace gazebo
 			}	
 		
 			
-			public : void moveToBall(){
+			void moveToBall(){
+				im::Vector2d target(this->ballPosition.X(),this->ballPosition.Y());
+				im::Vector2d desired = target - this->position;
+				desired.Normalize();
+				desired *= this->maxSpeed;
 
+				im::Vector2d steer = desired - this->velocity;
+				double xSpeed = this->velocity.X() + steer.X() * 0.7;
+				double ySpeed = this->velocity.Y() + steer.Y() * 0.7;
+
+				im::Vector2d newSpeed(xSpeed,ySpeed);
+
+				im::Angle desiredOrientation(atan2(desired.Y(),desired.X()));
+					
+				if(desiredOrientation.Radian() < 0){
+					desiredOrientation += 2 * pi;
+				}
+				if(abs(desiredOrientation.Radian() - this->rotation.Radian()) < 0.01){
+					applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),0)
+				}else{
+					if(desiredOrientation.Radian() - this->rotation.Radian() > 0){
+						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),3)
+					}else{
+						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-3)
+					}
+				}
 			}
 
-			public : void moveAndShoot(){
+			void moveAndShoot(double x, double y){
+				im::Vector2d target(x,y);
+				im::Vector2d desired = target - this->position;
+				desired.Normalize();
+				desired *= this->maxSpeed;
 
+				im::Vector2d steer = desired - this->velocity;
+				double xSpeed = this->velocity.X() + steer.X() * 0.7;
+				double ySpeed = this->velocity.Y() + steer.Y() * 0.7;
+
+				im::Vector2d newSpeed(xSpeed,ySpeed);
+
+				
+			}
+			void applyLinearAngularSpeed(double x, double y, double angular){
+				this->model->SetWorldTwist(im::Vector3d(x,y,0),im::Vector3d(0,0,-3));
 			}
 			
 		

@@ -54,9 +54,12 @@ namespace gazebo{
 			if(checkGoal()){
 				this->world->Reset();
 				this->world->ResetPhysicsStates();
-				for(int i = 0; i < this->world->ModelCount();i++){					
-					this->world->Models()[i]->SetWorldTwist(im::Vector3d(0,0,0),im::Vector3d(0,0,0));
+				if(this->ballModel->WorldPose().Pos().X() < -4.5){
+					this->ballModel->SetWorldPose(im::Pose3d(0.5,0,0,0,0,0));
+				}else{
+					this->ballModel->SetWorldPose(im::Pose3d(-0.5,0,0,0,0,0));
 				}
+				
 			}
 
 			checkPos();
