@@ -11,6 +11,7 @@
 #include <ros/ros.h>
 #include "bits/stdc++.h"
 #include "robot_control/ModelState.h"
+#include "std_msgs/String.h"
 #include <ignition/math/Pose3.hh>
 #include <cmath>
 
@@ -43,9 +44,21 @@ namespace gazebo
 			  ros::init(argc, argv, this->robotName ,ros::init_options::NoSigintHandler);
 			}
 			this->rosNode.reset(new ros::NodeHandle(this->robotName));
+
+
 			ros::SubscribeOptions so = ros::SubscribeOptions::create<robot_control::ModelState>("/ball_position",1,boost::bind(&RobotPlugin::BallCallback, this, _1),ros::VoidPtr(), &this->rosQueue);
 			this->rosSub = this->rosNode->subscribe(so);
+
+			so = ros::SubscribeOptions::create<std_msgs::String>("/ball_possesion_master",1,boost::bind(&RobotPlugin::ballPosCallback, this, _1),ros::VoidPtr(), &this->rosQueue);
+			this->ballPosSub = this->rosNode->subscribe(so);
+
+
 			this->rosQueueThread = std::thread(std::bind(&RobotPlugin::QueueThread, this));
+
+
+			this->rosPub = this->rosNode->advertise<std_msgs::String>("/ball_possesion",1,true);
+
+			
 
 	      
 	    }
@@ -58,7 +71,11 @@ namespace gazebo
 
 
 	      checkBallPossesion();
-
+	      if(this->has_ball){
+	      	std_msgs::String msg;
+	      	msg.data = this->robotName;
+	      	this->rosPub.publish(msg);
+	      }
 
 	      if(this->has_ball and !this->readyToShoot){
 	      	moveBall();
@@ -82,15 +99,30 @@ namespace gazebo
 	    }
 	    public : void BallCallback(const robot_control::ModelState::ConstPtr &_msg){
 	    	this->ballPosition.Set(_msg->point.x,_msg->point.y);
-	    	if(!this->has_ball){
+	    	std::cout << this->currBallPosTeam std::endl;
+	    	if(!this->has_ball and this->curBallPosTeam ==  "None"){
 	    		moveTo(_msg->point.x,_msg->point.y,0,true);	
 	    	}else{
-	    		moveTo(-3,0,pi,false);
+	    		if(this->curBallPosTeam == "B"){
+	    			moveTo(-3,0,pi,false);	
+	    		}else{
+	    			moveTo(3,0,0,false);	
+	    		}
+	    		
 	    	}
 	    	
 	    }
 		
-
+	    public : void ballPosCallback(const std_msgs::String::ConstPtr &msg){
+	    	if(msg->data == "None"){
+	    		this->curBallPos = "None";
+	    		this->curBallPosTeam = "None";
+	    	}else{
+	    		this->curBallPos = msg->data;
+	    		this->curBallPosTeam = msg->data[0];	
+	    	}
+	    	
+	    }
 		
 		private:
 			void moveTo(double x, double y,double orientation,bool isBall){
@@ -185,6 +217,10 @@ namespace gazebo
 
 	    private: ros::Subscriber rosSub;
 
+	    private: ros::Subscriber ballPosSub;
+
+		private: ros::Publisher rosPub;
+
 	    private: ros::CallbackQueue rosQueue;
 
 	    private: std::thread rosQueueThread;
@@ -203,6 +239,9 @@ namespace gazebo
 
 	    	std::string robotName;
 	    	std::string team;
+
+	    	std::string curBallPos;
+	    	std::string curBallPosTeam;
 
 	    	double maxSpeed = 1.5;
 	    	double maxForce;

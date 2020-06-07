@@ -8,6 +8,12 @@
 #include "ros/callback_queue.h"
 #include "ros/subscribe_options.h"
 #include "robot_control/ModelState.h"
+#include "std_msgs/String.h"
+
+
+#include <chrono>
+#include <ctime>
+
 
 #define im ignition::math
 namespace gazebo{
@@ -22,10 +28,21 @@ namespace gazebo{
 			  char **argv = NULL;
 			  ros::init(argc, argv, "game",ros::init_options::NoSigintHandler);
 
+			  this->rosNode.reset(new ros::NodeHandle("game_master"));
+
 			  
-			  this->ball_position_publisher = this->nh.advertise<robot_control::ModelState>("/ball_position",1,true);
-			  this->updateConnection = event::Events::ConnectWorldUpdateBegin(
-	          std::bind(&GamePlugin::OnUpdate, this));
+			  this->ball_position_publisher = this->rosNode->advertise<robot_control::ModelState>("/ball_position",1,true);
+			  this->ballPosessionMaster = this->rosNode->advertise<std_msgs::String>("/ball_possesion_master",1,true);
+
+
+
+			  ros::SubscribeOptions so = ros::SubscribeOptions::create<std_msgs::String>("/ball_possesion",1,boost::bind(&GamePlugin::BallPosCallback, this, _1),ros::VoidPtr(), &this->rosQueue);
+
+			  this->ballPossSub = this->rosNode->subscribe(so);
+
+			  this->rosQueueThread = std::thread(std::bind(&GamePlugin::QueueThread, this));
+
+			  this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&GamePlugin::OnUpdate, this));
 			}
 		}
 
@@ -37,6 +54,8 @@ namespace gazebo{
 			if(checkGoal()){
 				this->world->Reset();
 			}
+
+			checkPos();
 			
 		}
 
@@ -56,16 +75,49 @@ namespace gazebo{
 
 			return (ballY < 0.9 and ballY > -0.9 and (ballX < -4.5 or ballX > 4.5));
 		}
+		public :void QueueThread(){
+			static const double timeout = 0.01;
+			  	while (this->rosNode->ok()){
+			   	this->rosQueue.callAvailable(ros::WallDuration(timeout));
+			}
+		}
 
+		public : void BallPosCallback(const std_msgs::String::ConstPtr &msg){
+			this->timeFlag = time(NULL) + 1;
+
+			std_msgs::String newMsg;
+			newMsg.data = msg->data;
+			this->ballPosessionMaster.publish(newMsg);
+
+		}
+
+		public : void checkPos(){
+			if(time(NULL) > this->timeFlag){
+				std_msgs::String newMsg;
+				newMsg.data = "None";
+				this->ballPosessionMaster.publish(newMsg);
+				
+			}
+		}
 		private: event::ConnectionPtr updateConnection;
+
+		private: std::unique_ptr<ros::NodeHandle> rosNode;
+
+		private: ros::CallbackQueue rosQueue;
+
+	    private: std::thread rosQueueThread;
+
 		private:
 			physics::WorldPtr world;
 			physics::ModelPtr ballModel;
 
-			ros::NodeHandle nh;
 			ros::Publisher ball_position_publisher;
+			ros::Publisher ballPosessionMaster;
+			ros::Subscriber ballPossSub;
 			
+			std::chrono::high_resolution_clock::time_point timeExp;
 
+			int timeFlag;
 			
 		
 	};
