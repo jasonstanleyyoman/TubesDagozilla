@@ -41,6 +41,8 @@
         </geometry>
       </collision>
     </link>
+
 	<plugin name="robot_plugin" filename="librobot_plugin.so"/>
+
   </model>
 </sdf>

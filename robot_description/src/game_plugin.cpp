@@ -9,7 +9,7 @@
 #include "ros/subscribe_options.h"
 #include "robot_control/ModelState.h"
 #include "std_msgs/String.h"
-
+#include "robot_control/BallPos.h"
 
 #include <chrono>
 #include <ctime>
@@ -32,7 +32,7 @@ namespace gazebo{
 
 			  
 			  this->ball_position_publisher = this->rosNode->advertise<robot_control::ModelState>("/ball_position",1,true);
-			  this->ballPosessionMaster = this->rosNode->advertise<std_msgs::String>("/ball_possesion_master",1,true);
+			  this->ballPosessionMaster = this->rosNode->advertise<robot_control::BallPos>("/ball_possesion_master",1,true);
 
 
 
@@ -49,19 +49,25 @@ namespace gazebo{
 		public : void OnUpdate(){
 			
 			this->ballModel = this->world->ModelByName("ball");
-			
 			publishBallMessage();
-			if(checkGoal()){
-				double ballX;
-				if(this->ballModel->WorldPose().Pos().X() < -4.5){
-					ballX = -0.5;
+			if(checkGoal() or this->goal){
+				if(!this->goal){
+					if(this->ballModel->WorldPose().Pos().X() < -4.5){
+						this->startBallX = -0.5;
+					}else{
+						this->startBallX = 0.5;
+					}
+					this->timePause = time(NULL) + 3;
+					this->goal = true;	
 				}else{
-					ballX = 0.5;
+					if(time(NULL) > this->timePause){
+						this->goal = false;
+						this->timePause = 0;
+						this->world->Reset();
+						this->world->ResetPhysicsStates();
+						this->ballModel->SetWorldPose(im::Pose3d(this->startBallX,0,0,0,0,0));
+					}
 				}
-				this->world->Reset();
-				this->world->ResetPhysicsStates();
-				this->ballModel->SetWorldPose(im::Pose3d(ballX,0,0,0,0,0));
-				
 			}
 
 			checkPos();
@@ -82,7 +88,7 @@ namespace gazebo{
 			double ballX = this->ballModel->WorldPose().Pos().X();
 			double ballY = this->ballModel->WorldPose().Pos().Y();
 
-			return (ballY < 0.9 and ballY > -0.9 and (ballX < -4.5 or ballX > 4.5));
+			return (ballY < 0.8 and ballY > -0.8 and (ballX < -4.5 or ballX > 4.5));
 		}
 		public :void QueueThread(){
 			static const double timeout = 0.01;
@@ -94,16 +100,20 @@ namespace gazebo{
 		public : void BallPosCallback(const std_msgs::String::ConstPtr &msg){
 			this->timeFlag = time(NULL) + 1;
 
-			std_msgs::String newMsg;
-			newMsg.data = msg->data;
+			robot_control::BallPos newMsg;
+			newMsg.robotName = msg->data;
+			double x = this->world->ModelByName(msg->data)->WorldPose().Pos().X();
+			double y = this->world->ModelByName(msg->data)->WorldPose().Pos().Y();
+			newMsg.x = x;
+			newMsg.y = y;
 			this->ballPosessionMaster.publish(newMsg);
 
 		}
 
 		public : void checkPos(){
 			if(time(NULL) > this->timeFlag){
-				std_msgs::String newMsg;
-				newMsg.data = "None";
+				robot_control::BallPos newMsg;
+				newMsg.robotName = "None";
 				this->ballPosessionMaster.publish(newMsg);
 				
 			}
@@ -127,6 +137,11 @@ namespace gazebo{
 			std::chrono::high_resolution_clock::time_point timeExp;
 
 			int timeFlag;
+
+			bool goal = false;
+			int timePause = 0;
+
+			double startBallX;
 			
 		
 	};
