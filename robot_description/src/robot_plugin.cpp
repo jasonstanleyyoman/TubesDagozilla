@@ -15,6 +15,9 @@
 #include <ignition/math/Pose3.hh>
 #include <cmath>
 
+#include <ignition/math/Angle.hh>
+
+
 #define im ignition::math
 #define pi 3.141593
 
@@ -31,7 +34,7 @@ namespace gazebo
 			this->robotName = this->model->GetName();
 			this->team = this->robotName[0];
 			
-			this->model->SetWorldPose(im::Pose3d(this->model->WorldPose().Pos().X(),this->model->WorldPose().Pos().Y(),0,0,0,0));
+			this->model->SetWorldPose(im::Pose3d(this->model->WorldPose().Pos().X(),this->model->WorldPose().Pos().Y(),0,0,0,0.1));
 
 			this->updateConnection = event::Events::ConnectWorldUpdateBegin(
 			  std::bind(&RobotPlugin::OnUpdate, this));
@@ -59,16 +62,18 @@ namespace gazebo
 			this->rosPub = this->rosNode->advertise<std_msgs::String>("/ball_possesion",1,true);
 
 			
-
-	      
-	    }
+		}
 	    public: void OnUpdate()
 	    {
 	      
 	      this->position.Set(this->model->WorldPose().Pos().X(),this->model->WorldPose().Pos().Y());
 	      this->velocity.Set(this->model->RelativeLinearVel().X(),this->model->RelativeLinearVel().Y());
-	      this->rotation = this->model->WorldPose().Rot().Yaw();
 
+	      this->rotation.Radian(this->model->WorldPose().Rot().Yaw());
+	      this->rotation.Normalize();
+	      if(this->rotation.Radian() < 0){
+	      	this->rotation += 2 * pi;
+	      }
 
 	      checkBallPossesion();
 	      if(this->has_ball){
@@ -99,16 +104,22 @@ namespace gazebo
 	    }
 	    public : void BallCallback(const robot_control::ModelState::ConstPtr &_msg){
 	    	this->ballPosition.Set(_msg->point.x,_msg->point.y);
-	    	std::cout << this->currBallPosTeam std::endl;
+	    	std::cout << this->curBallPosTeam << std::endl;
 	    	if(!this->has_ball and this->curBallPosTeam ==  "None"){
 	    		moveTo(_msg->point.x,_msg->point.y,0,true);	
-	    	}else{
+	    	}else if(this->has_ball){
 	    		if(this->curBallPosTeam == "B"){
-	    			moveTo(-3,0,pi,false);	
-	    		}else{
 	    			moveTo(3,0,0,false);	
+	    		}else{
+	    			moveTo(-3,0,pi,false);	
 	    		}
 	    		
+	    	}else{
+	    		if(this->curBallPosTeam == "A"){
+	    			moveTo(3,0,0,false);	
+	    		}else{
+	    			moveTo(-3,0,pi,false);	
+	    		}
 	    	}
 	    	
 	    }
@@ -132,8 +143,8 @@ namespace gazebo
 				desired *= this->maxSpeed;
 
 				im::Vector2d steer = desired - this->velocity;
-				double xSpeed = this->velocity.X() + steer.X() * 0.3;
-				double ySpeed = this->velocity.Y() + steer.Y() * 0.3;
+				double xSpeed = this->velocity.X() + steer.X() * 0.7;
+				double ySpeed = this->velocity.Y() + steer.Y() * 0.8;
 
 				im::Vector2d newSpeed(xSpeed,ySpeed);
 
@@ -142,41 +153,53 @@ namespace gazebo
 					newSpeed*=this->maxSpeed;
 				}
 				if(isBall){
-					double desiredOrientation = atan(desired.Y() / desired.X());
-					if(desired.X() < 0){
-						if(desiredOrientation < 0){
-							desiredOrientation += pi;
+					im::Angle desiredOrientation(atan2(desired.Y(),desired.X()));
+					
+					if(desiredOrientation.Radian() < 0){
+						desiredOrientation += 2 * pi;
+					}
+					if(abs(desiredOrientation.Radian() - this->rotation.Radian()) < 0.01){
+						this->model->SetWorldTwist(im::Vector3d(newSpeed.X(),newSpeed.Y(),0),im::Vector3d(0,0,0));	
+					}else{
+						if(desiredOrientation.Radian() - this->rotation.Radian() > 0){
+							this->model->SetWorldTwist(im::Vector3d(newSpeed.X(),newSpeed.Y(),0),im::Vector3d(0,0,2));	
 						}else{
-							desiredOrientation -= pi;
+							this->model->SetWorldTwist(im::Vector3d(newSpeed.X(),newSpeed.Y(),0),im::Vector3d(0,0,-2));	
 						}
 					}
-					
-					if(abs(desiredOrientation - this->rotation) < 0.001){
-						this->model->SetWorldTwist(im::Vector3d(newSpeed.X(),newSpeed.Y(),0),im::Vector3d(0,0,0));	
-					}else{
-						this->model->SetWorldTwist(im::Vector3d(newSpeed.X(),newSpeed.Y(),0),im::Vector3d(0,0,2));
-					}	
+						
 				}else{
-					if(abs(orientation - this->rotation) < 0.001){
+					if(abs(orientation - this->rotation.Radian()) < 0.01){
 						this->model->SetWorldTwist(im::Vector3d(newSpeed.X(),newSpeed.Y(),0),im::Vector3d(0,0,0));	
 					}else{
-						this->model->SetWorldTwist(im::Vector3d(newSpeed.X(),newSpeed.Y(),0),im::Vector3d(0,0,2));
+						if(orientation - this->rotation.Radian() > 0){
+							this->model->SetWorldTwist(im::Vector3d(newSpeed.X(),newSpeed.Y(),0),im::Vector3d(0,0,2));	
+						}else{
+							this->model->SetWorldTwist(im::Vector3d(newSpeed.X(),newSpeed.Y(),0),im::Vector3d(0,0,-2));
+						}
+						
 					}
 
-					if(this->position.Distance(target) <= 0.01 and abs(orientation - this->rotation) < 0.01){
+					if(this->position.Distance(target) <= 0.01 and abs(orientation - this->rotation.Radian()) < 0.01){
 						this->readyToShoot = true;
 					}
 				}
 				
-				
+			}	
+		
+			
+			public : void moveToBall(){
 
 			}
 
+			public : void moveAndShoot(){
+
+			}
 			
 		
 			
 			void checkBallPossesion(){
-				im::Vector2d edge(this->position.X() + this->radius * cos(this->rotation),this->position.Y() + this->radius * sin(this->rotation));
+				im::Vector2d edge(this->position.X() + this->radius * cos(this->rotation.Radian()),this->position.Y() + this->radius * sin(this->rotation.Radian()));
 				if(edge.Distance(this->ballPosition) - this->ballRadius <= 0.01){
 					this->has_ball = true;
 				}else{
@@ -185,14 +208,20 @@ namespace gazebo
 			}
 
 			void moveBall(){
-				double x = this->position.X() + (this->radius + this->ballRadius) * cos(this->rotation);
-				double y = this->position.Y() + (this->radius + this->ballRadius) * sin(this->rotation);
+				double x = this->position.X() + (this->radius + this->ballRadius) * cos(this->rotation.Radian());
+				double y = this->position.Y() + (this->radius + this->ballRadius) * sin(this->rotation.Radian());
 				this->ballModel->SetWorldPose(im::Pose3d(x,y,0,0,0,0));
 			}
 
 			void shoot(){
-				this->has_ball = false;
-				this->ballModel->SetWorldTwist(im::Vector3d(-2,0,0),im::Vector3d(0,0,0));
+				if(this->has_ball and this->curBallPosTeam == "A"){
+					this->has_ball = false;
+					this->ballModel->SetWorldTwist(im::Vector3d(-2,0,3),im::Vector3d(0,0,0));	
+				}else if(this->has_ball){
+					this->has_ball = false;
+					this->ballModel->SetWorldTwist(im::Vector3d(2,0,3),im::Vector3d(0,0,0));
+				}
+				
 			}
 
 
@@ -235,7 +264,7 @@ namespace gazebo
 
 	    	im::Vector2d ballPosition;
 
-			double rotation;
+			im::Angle rotation;
 
 	    	std::string robotName;
 	    	std::string team;
@@ -259,3 +288,4 @@ namespace gazebo
 	};
 	GZ_REGISTER_MODEL_PLUGIN(RobotPlugin)
 }
+

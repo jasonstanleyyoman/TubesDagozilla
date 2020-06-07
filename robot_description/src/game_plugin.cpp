@@ -53,6 +53,10 @@ namespace gazebo{
 			publishBallMessage();
 			if(checkGoal()){
 				this->world->Reset();
+				this->world->ResetPhysicsStates();
+				for(int i = 0; i < this->world->ModelCount();i++){					
+					this->world->Models()[i]->SetWorldTwist(im::Vector3d(0,0,0),im::Vector3d(0,0,0));
+				}
 			}
 
 			checkPos();
