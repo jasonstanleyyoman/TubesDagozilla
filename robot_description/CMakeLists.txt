@@ -222,8 +222,12 @@ include_directories(
 # catkin_add_nosetests(test)
 add_library(robot_plugin src/robot_plugin.cpp)
 target_link_libraries(robot_plugin ${catkin_LIBRARIES} ${GAZEBO_LIBRARIES})
+
 add_library(game_plugin src/game_plugin.cpp)
 target_link_libraries(game_plugin ${catkin_LIBRARIES} ${GAZEBO_LIBRARIES})
+
+add_library(keeper_plugin src/keeper_plugin.cpp)
+target_link_libraries(keeper_plugin ${catkin_LIBRARIES} ${GAZEBO_LIBRARIES})
 catkin_package(
   DEPENDS
     rospy

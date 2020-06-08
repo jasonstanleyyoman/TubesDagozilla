@@ -132,7 +132,6 @@ namespace gazebo{
 
 		public : void checkPos(){
 			if(time(NULL) > this->timeFlag){
-				std::cout << "None" << std::endl;
 				robot_control::BallPos newMsg;
 				newMsg.robotName = "None";
 				this->ballPosessionMaster.publish(newMsg);

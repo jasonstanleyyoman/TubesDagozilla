@@ -38,14 +38,17 @@ namespace gazebo
 			this->robotName = this->model->GetName();
 			this->team = this->robotName[0];
 
-			
+			this->iter = 0;
 
 			if(this->team == 'A'){
-				this->goalX = -4.5;
+				this->goalTargetX = -4.5;
+				this->goalSelfX = 4.5;
 			}else{
-				this->goalX = 4.5;
+				this->goalTargetX = 4.5;
+				this->goalSelfX = -4.5;
 			}
-			this->goalY = 0;
+			this->goalTargetY = 0;
+			this->goalSelfY = 0;
 			
 
 			this->updateConnection = event::Events::ConnectWorldUpdateBegin(
@@ -119,6 +122,7 @@ namespace gazebo
 	    }
 	    public : void BallCallback(const robot_control::ModelState::ConstPtr &_msg){
 	    	this->ballPosition.Set(_msg->point.x,_msg->point.y);
+	    	this->ballVelocity.Set(_msg->twist.linear.x,_msg->twist.linear.y,_msg->twist.linear.z);
 	    	
 	    }
 		
@@ -165,15 +169,11 @@ namespace gazebo
 					applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),0);
 				}else{
 					if(orientation - this->rotation.Radian() > 0){
-						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),3);
+						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),this->maxAngularSpeed);
 					}else{
-						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-3);
+						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-1 * this->maxAngularSpeed);
 					}
 					
-				}
-
-				if(this->position.Distance(target) <= 0.01 and abs(orientation - this->rotation.Radian()) < 0.01){
-					this->readyToShoot = true;
 				}
 			}
 				
@@ -185,10 +185,12 @@ namespace gazebo
 				im::Vector2d desired = target - this->position;
 				desired.Normalize();
 				desired *= this->maxSpeed;
-
+				if(target.Distance(this->position) < 1){
+					desired *= 1.2;
+				}
 				im::Vector2d steer = desired - this->velocity;
-				double xSpeed = this->velocity.X() + steer.X() * 0.7;
-				double ySpeed = this->velocity.Y() + steer.Y() * 0.7;
+				double xSpeed = this->velocity.X() + steer.X();
+				double ySpeed = this->velocity.Y() + steer.Y();
 
 				im::Vector2d newSpeed(xSpeed,ySpeed);
 
@@ -201,9 +203,9 @@ namespace gazebo
 					applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),0);
 				}else{
 					if(desiredOrientation.Radian() - this->rotation.Radian() > 0){
-						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),4);
+						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),this->maxAngularSpeed);
 					}else{
-						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-4);
+						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-1 * this->maxAngularSpeed);
 					}
 				}
 			}
@@ -220,7 +222,7 @@ namespace gazebo
 
 				im::Vector2d newSpeed(xSpeed,ySpeed);
 
-				im::Angle desiredOrientation(atan2(this->goalY - y,this->goalX - x));
+				im::Angle desiredOrientation(atan2(this->goalTargetY - y,this->goalTargetX - x));
 				if(desiredOrientation.Radian() < 0){
 					desiredOrientation += 2 * pi;
 				}
@@ -229,9 +231,9 @@ namespace gazebo
 					applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),0);
 				}else{
 					if(desiredOrientation.Radian() - this->rotation.Radian() > 0){
-						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),3);
+						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),this->maxAngularSpeed);
 					}else{
-						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-3);
+						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-1 * this->maxAngularSpeed);
 					}
 				}
 
@@ -244,7 +246,17 @@ namespace gazebo
 
 			void decideMove(){
 				if(!this->has_ball and this->curBallPosTeam ==  'N'){
-		    		moveToBall();
+					if(checkClosest(this->ballPosition.X(),this->ballPosition.Y())){
+						moveToBall();	
+					}else{
+						if(abs(this->goalTargetX - this->ballPosition.X()) < abs(this->goalSelfX - this->ballPosition.X())){
+							attack();
+						}else{
+
+							defend();
+						}
+					}
+		    		
 		    	}else if(this->has_ball){
 		    		if(this->curBallPosTeam == 'B'){
 		    			moveAndShoot(3,1);	
@@ -262,33 +274,18 @@ namespace gazebo
 			}
 
 			void defend(){
-				std::string closestName;
-				double minimum = INT_MAX;
-				for(auto const&robot : this->robotsPosition){
-					if(robot.first[0] == this->team){
-						im::Vector2d pos(robot.second);
-						if(this->ballOwner.Distance(pos) < minimum){
-							minimum = this->ballOwner.Distance(pos);
-							closestName = robot.first;
-						}
-					}
-				}
-				if(closestName == this->robotName){
-					if(this->team == 'A'){
-						moveTo(this->ballOwner.X() + 0.25 * (4.5 - this->ballOwner.X()), 0.75 * this->ballOwner.Y(),0);
-					}else{
-						moveTo(this->ballOwner.X() + 0.25 * (-4.5 - this->ballOwner.X()), 0.75 * this->ballOwner.Y(),0);
-					}	
-				}else{
+				if(checkClosest(this->ballOwner.X(),this->ballOwner.Y())){
+					moveTo(this->ballOwner.X() + 0.25 * (this->goalSelfX - this->ballOwner.X()), 0.75 * this->ballOwner.Y(),0);
+					
+				}else if(this->curBallPosTeam == 'N'){
+					moveTo(this->goalSelfX,0,0);
+				}else if(this->curBallPosTeam != this->team and this->curBallPosTeam != 'N'){
 					for(auto const&robot : this->robotsPosition){
-						if(robot.first[0] != this->team and robot.first != this->curBallPos){
+						if(robot.first[0] != this->team and robot.first != this->curBallPos and robot.first[6] != 'K'){
 							moveTo(this->ballOwner.X() + 0.75 * (robot.second.X() - this->ballOwner.X()), this->ballOwner.Y() + 0.75 * (robot.second.Y() - this->ballOwner.Y()),0);
 						}
 					}
 				}
-				
-				
-
 			}
 			void attack(){
 				if(this->team == 'A'){
@@ -301,6 +298,24 @@ namespace gazebo
 
 			void applyLinearAngularSpeed(double x, double y, double angular){
 				this->model->SetWorldTwist(im::Vector3d(x,y,0),im::Vector3d(0,0,angular));
+			}
+
+			bool checkClosest(double x, double y){
+				std::string closestName;
+				double minimum = INT_MAX;
+				for(auto const&robot : this->robotsPosition){
+					if(robot.first[0] == this->team and robot.first[6] != 'K'){
+						double distance = robot.second.Distance(im::Vector2d(x,y));
+						if(distance < minimum){
+							minimum = distance;
+							closestName = robot.first;
+						}
+					}
+				}
+				if(closestName == this->robotName){
+					return true;
+				}
+				return false;
 			}
 			
 		
@@ -327,7 +342,7 @@ namespace gazebo
 					this->curBallPos = "None";
 					this->curBallPosTeam = 'N';
 					im::Vector2d speed(cos(this->rotation.Radian()),sin(this->rotation.Radian()));
-					double goalDistance = this->position.Distance(im::Vector2d(this->goalX,this->goalY));
+					double goalDistance = this->position.Distance(im::Vector2d(this->goalTargetX,this->goalTargetY));
 					speed *= goalDistance;
 
 					this->ballModel->SetWorldTwist(im::Vector3d(speed.X() * 0.8,speed.Y() * 0.8,goalDistance * 0.7),im::Vector3d(0,0,0));	
@@ -350,7 +365,6 @@ namespace gazebo
 
 		private: physics::WorldPtr world;
 
-	    // Pointer to the update event connection
 	    private: event::ConnectionPtr updateConnection;
 
 	    private: std::unique_ptr<ros::NodeHandle> rosNode;
@@ -373,9 +387,9 @@ namespace gazebo
 
 	    	im::Vector2d velocity;
 
-	    	im::Vector2d acceleration;
-
 	    	im::Vector2d ballPosition;
+
+	    	im::Vector3d ballVelocity;
 
 			im::Angle rotation;
 
@@ -390,23 +404,21 @@ namespace gazebo
 
 	    	std::map<std::string,im::Vector2d> robotsPosition;
 
-	    	double maxSpeed = 1.5;
-	    	double maxForce;
-	    	double maxAngularSpeed = 0.3;
+	    	double maxSpeed = 2;
+	    	double maxAngularSpeed = 4;
 	    	double radius = 0.09;
 	    	double ballRadius = 0.043;
 
 	    	bool has_ball = false;
 	    	bool readyToShoot = false;
-
-	    	bool checkTeam = false;
 	    	
 	    	int timeEndShoot = 0;
 
-	    	double goalX;
-	    	double goalY;
+	    	double goalTargetX;
+	    	double goalTargetY;
 
-	  
+	    	double goalSelfX;
+	    	double goalSelfY;
 	};
 	GZ_REGISTER_MODEL_PLUGIN(RobotPlugin)
 }
