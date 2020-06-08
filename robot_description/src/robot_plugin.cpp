@@ -13,6 +13,7 @@
 #include "robot_control/ModelState.h"
 #include "std_msgs/String.h"
 #include "robot_control/BallPos.h"
+#include "robot_control/RobotsPosition.h"
 #include <ignition/math/Pose3.hh>
 #include <cmath>
 
@@ -46,7 +47,6 @@ namespace gazebo
 			}
 			this->goalY = 0;
 			
-			this->model->SetWorldPose(im::Pose3d(this->model->WorldPose().Pos().X(),this->model->WorldPose().Pos().Y(),0,0,0,0.1));
 
 			this->updateConnection = event::Events::ConnectWorldUpdateBegin(
 			  std::bind(&RobotPlugin::OnUpdate, this));
@@ -67,6 +67,9 @@ namespace gazebo
 			so = ros::SubscribeOptions::create<robot_control::BallPos>("/ball_possesion_master",1,boost::bind(&RobotPlugin::ballPosCallback, this, _1),ros::VoidPtr(), &this->rosQueue);
 			this->ballPosSub = this->rosNode->subscribe(so);
 
+			so = ros::SubscribeOptions::create<robot_control::RobotsPosition>("/robots_position",1,boost::bind(&RobotPlugin::RobotsPositionCallback, this, _1),ros::VoidPtr(), &this->rosQueue);
+			this->robotsPosSub = this->rosNode->subscribe(so);
+
 
 			this->rosQueueThread = std::thread(std::bind(&RobotPlugin::QueueThread, this));
 
@@ -77,15 +80,7 @@ namespace gazebo
 		}
 	    public: void OnUpdate()
 	    {
-	      if(!this->checkTeam){
-	      	for(int i = 0; i < this->world->ModelCount();i++){
-				std::string name = this->world->ModelByIndex(i)->GetName();
-				if(name[0] == this->team and name.substr(1,5) == "Robot"){
-					this->teamList.push_back(this->world->ModelByIndex(i)->GetName());
-				}
-			}
-			this->checkTeam = true;
-	      }
+	      
 	      this->position.Set(this->model->WorldPose().Pos().X(),this->model->WorldPose().Pos().Y());
 	      this->velocity.Set(this->model->RelativeLinearVel().X(),this->model->RelativeLinearVel().Y());
 
@@ -129,6 +124,7 @@ namespace gazebo
 		
 	    public : void ballPosCallback(const robot_control::BallPos::ConstPtr &msg){
 	    	if(msg->robotName == "None"){
+	    		
 	    		this->curBallPos = "None";
 	    		this->curBallPosTeam = "None";
 	    	}else{
@@ -137,6 +133,11 @@ namespace gazebo
 	    		this->ballOwner.Set(msg->x,msg->y);
 	    	}
 	    	
+	    }
+	    public : void RobotsPositionCallback(const robot_control::RobotsPosition::ConstPtr &msg){
+	    	for(int i = 0; i < msg->robotsPos.size();i++){
+	    		this->robotsPosition[msg->robotsPos[i].robotName] = im::Vector2d(msg->robotsPos[i].x,msg->robotsPos[i].x);
+	    	}
 	    }
 		
 		private:
@@ -257,31 +258,25 @@ namespace gazebo
 			}
 
 			void defend(){
-				physics::ModelPtr hasBallModel;
-				std::cout << "Ball Owner From " << this->robotName << ": x : " << this->ballOwner.X() << " y : " << this->ballOwner.Y() << std::endl;
-				// double hasBallX = hasBallModel->WorldPose().Pos().X();
-				// double hasBallY = hasBallModel->WorldPose().Pos().Y();
-
-				// std::cout << this->robotName << " x : " << hasBallX << " y : " << hasBallY << std::endl;
-				
-				// im::Vector2d hasBallPos(hasBallX,hasBallY);
-				// std::string closestName;
-				// double minimum = INT_MAX;
-
-				// for(int i = 0; i < this->teamList.size();i++){
-				// 	physics::ModelPtr teamModel = this->world->ModelByName(teamList[i]);
-				// 	im::Vector2d teamPos(teamModel->WorldPose().Pos().X(),teamModel->WorldPose().Pos().Y());
-				// 	if(hasBallPos.Distance(teamPos) < minimum){
-				// 		minimum = hasBallPos.Distance(teamPos);
-				// 		closestName = teamList[i];
-				// 	}
-				// }
-				// if(closestName == this->robotName){}
-				if(this->team == 'A'){
-					moveTo(this->ballOwner.X() + 0.25 * (4.5 - this->ballOwner.X()), 0.75 * this->ballOwner.Y(),0);
-				}else{
-					moveTo(this->ballOwner.X() + 0.25 * (-4.5 - this->ballOwner.X()), 0.75 * this->ballOwner.Y(),0);
+				std::string closestName;
+				double minimum = INT_MAX;
+				for(auto const&robot : this->robotsPosition){
+					if(robot.first[0] == this->team){
+						im::Vector2d pos(robot.second);
+						if(this->ballOwner.Distance(pos) < minimum){
+							minimum = this->ballOwner.Distance(pos);
+							closestName = robot.first;
+						}
+					}
 				}
+				if(closestName == this->robotName){
+					if(this->team == 'A'){
+						moveTo(this->ballOwner.X() + 0.25 * (4.5 - this->ballOwner.X()), 0.75 * this->ballOwner.Y(),0);
+					}else{
+						moveTo(this->ballOwner.X() + 0.25 * (-4.5 - this->ballOwner.X()), 0.75 * this->ballOwner.Y(),0);
+					}	
+				}
+				
 				
 
 			}
@@ -348,6 +343,8 @@ namespace gazebo
 
 	    private: ros::Subscriber ballPosSub;
 
+	    private: ros::Subscriber robotsPosSub;
+
 		private: ros::Publisher rosPub;
 
 	    private: ros::CallbackQueue rosQueue;
@@ -369,12 +366,13 @@ namespace gazebo
 			im::Vector2d ballOwner;
 
 	    	std::string robotName;
-	    	char team;
 
-	    	std::vector<std::string> teamList;
+	    	char team;
 
 	    	std::string curBallPos;
 	    	std::string curBallPosTeam;
+
+	    	std::map<std::string,im::Vector2d> robotsPosition;
 
 	    	double maxSpeed = 1.5;
 	    	double maxForce;

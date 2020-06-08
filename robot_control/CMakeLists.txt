@@ -67,6 +67,7 @@ find_package(gazebo REQUIRED)
    FILES
    ModelState.msg
    BallPos.msg
+   RobotsPosition.msg
  )
 
 ## Generate services in the 'srv' folder

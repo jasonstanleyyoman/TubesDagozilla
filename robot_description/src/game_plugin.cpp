@@ -10,6 +10,7 @@
 #include "robot_control/ModelState.h"
 #include "std_msgs/String.h"
 #include "robot_control/BallPos.h"
+#include "robot_control/RobotsPosition.h"
 
 #include <chrono>
 #include <ctime>
@@ -33,6 +34,7 @@ namespace gazebo{
 			  
 			  this->ball_position_publisher = this->rosNode->advertise<robot_control::ModelState>("/ball_position",1,true);
 			  this->ballPosessionMaster = this->rosNode->advertise<robot_control::BallPos>("/ball_possesion_master",1,true);
+			  this->robotsPosition = this->rosNode->advertise<robot_control::RobotsPosition>("/robots_position",1,true);
 
 
 
@@ -50,6 +52,7 @@ namespace gazebo{
 			
 			this->ballModel = this->world->ModelByName("ball");
 			publishBallMessage();
+			publishRobotsPosition();
 			if(checkGoal() or this->goal){
 				if(!this->goal){
 					if(this->ballModel->WorldPose().Pos().X() < -4.5){
@@ -109,9 +112,27 @@ namespace gazebo{
 			this->ballPosessionMaster.publish(newMsg);
 
 		}
+		public : void publishRobotsPosition(){
+			std::vector<robot_control::BallPos> robotsPositionVector;
+			for(int i = 0; i < this->world->ModelCount();i++){
+				physics::ModelPtr robot = this->world->ModelByIndex(i);
+				if(robot->GetName().substr(1,5) == "Robot"){
+					robot_control::BallPos newMsg;
+					newMsg.robotName = robot->GetName();
+					newMsg.x = robot->WorldPose().Pos().X();
+					newMsg.y = robot->WorldPose().Pos().Y();
+					robotsPositionVector.push_back(newMsg);
+				}
+			}
+			robot_control::RobotsPosition published;
+			published.robotsPos = robotsPositionVector;
+			this->robotsPosition.publish(published);
+
+		}
 
 		public : void checkPos(){
 			if(time(NULL) > this->timeFlag){
+				std::cout << "None" << std::endl;
 				robot_control::BallPos newMsg;
 				newMsg.robotName = "None";
 				this->ballPosessionMaster.publish(newMsg);
@@ -132,6 +153,7 @@ namespace gazebo{
 
 			ros::Publisher ball_position_publisher;
 			ros::Publisher ballPosessionMaster;
+			ros::Publisher robotsPosition;
 			ros::Subscriber ballPossSub;
 			
 			std::chrono::high_resolution_clock::time_point timeExp;
