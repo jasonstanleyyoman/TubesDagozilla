@@ -47,6 +47,7 @@ namespace gazebo
 	    	im::Vector2d ballPosition;
 
 	    	im::Angle rotation;
+	    	im::Angle defaultOrientation;
 
 	    	std::string robotName;
 
@@ -140,11 +141,19 @@ namespace gazebo
 	      		if(this->has_ball and !this->readyToShoot){
 			    	moveBall();
 			    }
+			    if(this->readyToShoot and time(NULL) > this->timeEndShoot){
+			    	this->readyToShoot = false;
+			    	this->timeEndShoot = 0;
+			    }
 	    	}
 
 		private:
 			void BallCallback(const robot_control::ModelState::ConstPtr &msg){
 				this->ballPosition.Set(msg->point.x,msg->point.y);
+				this->defaultOrientation.Radian(atan2(this->ballPosition.Y() - this->position.Y(), this->ballPosition.X() - this->position.X()));
+				if(this->defaultOrientation.Radian() < 0){
+					this->defaultOrientation += 2 * pi;
+				}
 			}
 			void BallPosCallback(const robot_control::BallPos::ConstPtr &msg){
 		    	if(msg->robotName == "None"){
@@ -212,9 +221,17 @@ namespace gazebo
 					applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),0);
 				}else{
 					if(desiredOrientation.Radian() - this->rotation.Radian() > 0){
-						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),this->maxAngularSpeed);
+						if(desiredOrientation.Radian() - this->rotation.Radian() - pi > 0){
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-1 * this->maxAngularSpeed);	
+						}else{
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),this->maxAngularSpeed);	
+						}
 					}else{
-						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-1 * this->maxAngularSpeed);
+						if(desiredOrientation.Radian() - this->rotation.Radian() + pi > 0){
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-1 * this->maxAngularSpeed);	
+						}else{
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),this->maxAngularSpeed);	
+						}
 					}
 				}
 			}
@@ -240,9 +257,17 @@ namespace gazebo
 					applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),0);
 				}else{
 					if(orientation - this->rotation.Radian() > 0){
-						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),this->maxAngularSpeed);
+						if(orientation - this->rotation.Radian() - pi > 0){
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-1 * this->maxAngularSpeed);	
+						}else{
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),this->maxAngularSpeed);	
+						}
 					}else{
-						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-1 * this->maxAngularSpeed);
+						if(orientation - this->rotation.Radian() + pi > 0){
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-1 * this->maxAngularSpeed);	
+						}else{
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),this->maxAngularSpeed);	
+						}
 					}
 					
 				}
@@ -256,18 +281,75 @@ namespace gazebo
 			}
 
 			void decideMove(){
-				if(this->ballPosition.Distance(im::Vector2d(this->goalSelfX,this->goalSelfY)) < 1 and this->curBallPosTeam == 'N' and !this->has_ball){
+				if(this->ballPosition.Distance(im::Vector2d(this->goalSelfX,this->goalSelfY)) < 2 and this->curBallPosTeam == 'N' and !this->has_ball){
 					moveToBall();
-				}else if(this->ballPosition.Distance(im::Vector2d(this->goalSelfX,this->goalSelfY)) < 1 and this->curBallPosTeam != this->team){
+				}else if(this->ballPosition.Distance(im::Vector2d(this->goalSelfX,this->goalSelfY)) < 2 and this->curBallPosTeam != this->team and !this->has_ball){
 					moveTo(this->ballOwner.X() + 0.25 * (this->goalSelfX - this->ballOwner.X()), 0.75 * this->ballOwner.Y(),0);
-				}else{
+				}else if(this->ballPosition.Distance(im::Vector2d(this->goalSelfX,this->goalSelfY)) >= 2){
 					im::Vector2d target(this->goalSelfX + 0.25 * (this->ballPosition.X() - this->goalSelfX), 0.25 * this->ballPosition.Y());
-					if(target.Distance(im::Vector2d(this->goalSelfX,this->goalSelfY)) >= 1){
-						target.Normalize();
-						target *= 1;
+					if(target.Distance(im::Vector2d(this->goalSelfX,this->goalSelfY)) >= 2){
+						if(this->team == 'A'){
+							target.X(this->goalSelfX - target.X());
+							target.Normalize();
+							target *= 2;
+							target.X(target.X() + this->goalSelfX);	
+						}else{
+							target.X(target.X() - this->goalSelfX);
+							target.Normalize();
+							target *= 2;
+							target.X(target.X() + this->goalSelfX);	
+						}
+						
 					}
-					moveTo(target.X(),target.Y(),0);
+					moveTo(target.X(),target.Y(),this->defaultOrientation.Radian());
+				}else if(this->has_ball and !this->readyToShoot){
+					im::Vector2d longest(0,0);
+					double longestDistance = -1;
+					for(auto const&robot : this->robotsPosition){
+						if(robot.first[0] == this->team){
+							if(this->position.Distance(robot.second) > longestDistance){
+								longest.Set(robot.second.X(),robot.second.Y());
+								longestDistance = this->position.Distance(robot.second);
+							}
+						}
+					}
+					passBall(longest.X(),longest.Y());
 				}
+
+			}
+			void passBall(double x, double y){
+				im::Angle desiredOrientation(atan2(y - this->position.Y(),x - this->position.X()));
+				if(desiredOrientation.Radian() < 0){
+					desiredOrientation += 2 * pi;
+				}
+				if(abs(desiredOrientation.Radian() - this->rotation.Radian()) < 0.01){
+					this->readyToShoot = true;
+					if(this->has_ball and this->readyToShoot){
+						this->has_ball = true;
+						this->curBallPos = "None";
+						this->curBallPosTeam = 'N';
+						im::Vector2d speed(cos(this->rotation.Radian()),sin(this->rotation.Radian()));
+						double goalDistance = this->position.Distance(im::Vector2d(x,y));
+						speed *= goalDistance;
+						this->ballModel->SetWorldTwist(im::Vector3d(speed.X() * 0.8,speed.Y() * 0.8,goalDistance * 0.7),im::Vector3d(0,0,0));
+						this->timeEndShoot = time(NULL) + 1;
+					}
+				}else{
+					if(desiredOrientation.Radian() - this->rotation.Radian() > 0){
+						if(desiredOrientation.Radian() - this->rotation.Radian() - pi > 0){
+							applyLinearAngularSpeed(0,0,-1 * this->maxAngularSpeed);	
+						}else{
+							applyLinearAngularSpeed(0,0,this->maxAngularSpeed);	
+						}
+					}else{
+						if(desiredOrientation.Radian() - this->rotation.Radian() + pi > 0){
+							applyLinearAngularSpeed(0,0,-1 * this->maxAngularSpeed);	
+						}else{
+							applyLinearAngularSpeed(0,0,this->maxAngularSpeed);	
+						}
+					}
+				}
+				
 
 			}
 	};

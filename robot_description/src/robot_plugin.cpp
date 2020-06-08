@@ -38,7 +38,7 @@ namespace gazebo
 			this->robotName = this->model->GetName();
 			this->team = this->robotName[0];
 
-			this->iter = 0;
+			
 
 			if(this->team == 'A'){
 				this->goalTargetX = -4.5;
@@ -123,7 +123,10 @@ namespace gazebo
 	    public : void BallCallback(const robot_control::ModelState::ConstPtr &_msg){
 	    	this->ballPosition.Set(_msg->point.x,_msg->point.y);
 	    	this->ballVelocity.Set(_msg->twist.linear.x,_msg->twist.linear.y,_msg->twist.linear.z);
-	    	
+	    	this->defaultOrientation.Radian(atan2(this->ballPosition.Y() - this->position.Y(), this->ballPosition.X() - this->position.X()));
+	    	if(this->defaultOrientation.Radian() < 0){
+	    		this->defaultOrientation += 2 * pi;
+	    	}
 	    }
 		
 	    public : void ballPosCallback(const robot_control::BallPos::ConstPtr &msg){
@@ -169,9 +172,17 @@ namespace gazebo
 					applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),0);
 				}else{
 					if(orientation - this->rotation.Radian() > 0){
-						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),this->maxAngularSpeed);
+						if(orientation - this->rotation.Radian() - pi > 0){
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-1 * this->maxAngularSpeed);	
+						}else{
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),this->maxAngularSpeed);	
+						}
 					}else{
-						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-1 * this->maxAngularSpeed);
+						if(orientation - this->rotation.Radian() + pi > 0){
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-1 * this->maxAngularSpeed);	
+						}else{
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),this->maxAngularSpeed);	
+						}
 					}
 					
 				}
@@ -203,9 +214,17 @@ namespace gazebo
 					applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),0);
 				}else{
 					if(desiredOrientation.Radian() - this->rotation.Radian() > 0){
-						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),this->maxAngularSpeed);
+						if(desiredOrientation.Radian() - this->rotation.Radian() - pi > 0){
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-1 * this->maxAngularSpeed);	
+						}else{
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),this->maxAngularSpeed);	
+						}
 					}else{
-						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-1 * this->maxAngularSpeed);
+						if(desiredOrientation.Radian() - this->rotation.Radian() + pi > 0){
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-1 * this->maxAngularSpeed);	
+						}else{
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),this->maxAngularSpeed);	
+						}
 					}
 				}
 			}
@@ -231,9 +250,17 @@ namespace gazebo
 					applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),0);
 				}else{
 					if(desiredOrientation.Radian() - this->rotation.Radian() > 0){
-						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),this->maxAngularSpeed);
+						if(desiredOrientation.Radian() - this->rotation.Radian() - pi > 0){
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-1 * this->maxAngularSpeed);	
+						}else{
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),this->maxAngularSpeed);	
+						}
 					}else{
-						applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-1 * this->maxAngularSpeed);
+						if(desiredOrientation.Radian() - this->rotation.Radian() + pi > 0){
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-1 * this->maxAngularSpeed);	
+						}else{
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),this->maxAngularSpeed);	
+						}
 					}
 				}
 
@@ -275,23 +302,23 @@ namespace gazebo
 
 			void defend(){
 				if(checkClosest(this->ballOwner.X(),this->ballOwner.Y())){
-					moveTo(this->ballOwner.X() + 0.25 * (this->goalSelfX - this->ballOwner.X()), 0.75 * this->ballOwner.Y(),0);
+					moveTo(this->ballOwner.X() + 0.25 * (this->goalSelfX - this->ballOwner.X()), 0.75 * this->ballOwner.Y(),this->defaultOrientation.Radian());
 					
 				}else if(this->curBallPosTeam == 'N'){
-					moveTo(this->goalSelfX,0,0);
+					moveTo(this->goalSelfX,0,this->defaultOrientation.Radian());
 				}else if(this->curBallPosTeam != this->team and this->curBallPosTeam != 'N'){
 					for(auto const&robot : this->robotsPosition){
 						if(robot.first[0] != this->team and robot.first != this->curBallPos and robot.first[6] != 'K'){
-							moveTo(this->ballOwner.X() + 0.75 * (robot.second.X() - this->ballOwner.X()), this->ballOwner.Y() + 0.75 * (robot.second.Y() - this->ballOwner.Y()),0);
+							moveTo(this->ballOwner.X() + 0.75 * (robot.second.X() - this->ballOwner.X()), this->ballOwner.Y() + 0.75 * (robot.second.Y() - this->ballOwner.Y()),this->defaultOrientation.Radian());
 						}
 					}
 				}
 			}
 			void attack(){
 				if(this->team == 'A'){
-					moveTo(-1,-1,0);
+					moveTo(-1,-1,this->defaultOrientation.Radian());
 				}else{
-					moveTo(1,-1,0);
+					moveTo(1,-1,this->defaultOrientation.Radian());
 				}
 			}
 
@@ -392,6 +419,7 @@ namespace gazebo
 	    	im::Vector3d ballVelocity;
 
 			im::Angle rotation;
+			im::Angle defaultOrientation;
 
 			im::Vector2d ballOwner;
 
