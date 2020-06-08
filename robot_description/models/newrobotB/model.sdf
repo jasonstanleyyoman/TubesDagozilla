@@ -1,0 +1,66 @@
+<?xml version="1.0" ?>
+<sdf version="1.5">
+  <model name="Robot Keeper">
+    <link name="link">
+      
+
+      <visual name="visual">
+        <geometry>
+        	<cylinder>
+			<radius>0.09</radius>
+			<length>0.15</length>
+		</cylinder>
+
+            
+        </geometry>
+      </visual>
+	<visual name="top">
+		<pose>0.08 0 0.075 0 0 0</pose>
+		<geometry>
+			<cylinder>
+				
+				<radius>0.01</radius>
+				<length>0.01</length>
+			</cylinder>
+
+            		
+       		</geometry>
+		<material> 
+		  	<ambient>0 0 1 1</ambient>
+			  <diffuse>0 0 1 1</diffuse>
+			  <specular>0 0 0 0</specular>
+			  <emissive>0 0 0 1</emissive>
+        	</material>
+	</visual>
+	<visual name="identifier">
+		<pose>0 0 0.075 0 0 0</pose>
+		<geometry>
+			<cylinder>
+				
+				<radius>0.03</radius>
+				<length>0.01</length>
+			</cylinder>
+
+            		
+       		</geometry>
+		<material> 
+		  	<ambient>0 0 1 1</ambient>
+			  <diffuse>0 0 1 1</diffuse>
+			  <specular>0 0 0 0</specular>
+			  <emissive>0 0 0 1</emissive>
+        	</material>
+	</visual>
+      <collision name="collision">
+        <geometry>
+                <cylinder>
+			<radius>0.09</radius>
+			<length>0.15</length>
+		</cylinder>
+        </geometry>
+      </collision>
+    </link>
+
+	<plugin name="robot_plugin" filename="librobot_plugin.so"/>
+
+  </model>
+</sdf>

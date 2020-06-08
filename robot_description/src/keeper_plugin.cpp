@@ -46,6 +46,8 @@ namespace gazebo
 
 	    	im::Vector2d ballPosition;
 
+	    	double ballHeight;
+
 	    	im::Angle rotation;
 	    	im::Angle defaultOrientation;
 
@@ -150,10 +152,12 @@ namespace gazebo
 		private:
 			void BallCallback(const robot_control::ModelState::ConstPtr &msg){
 				this->ballPosition.Set(msg->point.x,msg->point.y);
+				this->ballHeight = msg->point.z;
 				this->defaultOrientation.Radian(atan2(this->ballPosition.Y() - this->position.Y(), this->ballPosition.X() - this->position.X()));
 				if(this->defaultOrientation.Radian() < 0){
 					this->defaultOrientation += 2 * pi;
 				}
+				decideMove();
 			}
 			void BallPosCallback(const robot_control::BallPos::ConstPtr &msg){
 		    	if(msg->robotName == "None"){
@@ -168,7 +172,7 @@ namespace gazebo
 		    			this->has_ball = true;
 		    		}
 		    	}
-		    	decideMove();
+		    	
 	    	
 	    	}
 
@@ -183,7 +187,7 @@ namespace gazebo
 
 			void checkBallPossesion(){
 				im::Vector2d edge(this->position.X() + this->radius * cos(this->rotation.Radian()),this->position.Y() + this->radius * sin(this->rotation.Radian()));
-				if(edge.Distance(this->ballPosition) - this->ballRadius <= 0.01){
+				if(edge.Distance(this->ballPosition) - this->ballRadius <= 0.01 and this->ballHeight < 0.15){
 					this->has_ball = true;
 				}else{
 					this->has_ball = false;
@@ -284,7 +288,7 @@ namespace gazebo
 				if(this->ballPosition.Distance(im::Vector2d(this->goalSelfX,this->goalSelfY)) < 2 and this->curBallPosTeam == 'N' and !this->has_ball){
 					moveToBall();
 				}else if(this->ballPosition.Distance(im::Vector2d(this->goalSelfX,this->goalSelfY)) < 2 and this->curBallPosTeam != this->team and !this->has_ball){
-					moveTo(this->ballOwner.X() + 0.25 * (this->goalSelfX - this->ballOwner.X()), 0.75 * this->ballOwner.Y(),0);
+					moveTo(this->ballPosition.X() + 0.25 * (this->goalSelfX - this->ballPosition.X()), 0.75 * this->ballPosition.Y(),0);
 				}else if(this->ballPosition.Distance(im::Vector2d(this->goalSelfX,this->goalSelfY)) >= 2){
 					im::Vector2d target(this->goalSelfX + 0.25 * (this->ballPosition.X() - this->goalSelfX), 0.25 * this->ballPosition.Y());
 					if(target.Distance(im::Vector2d(this->goalSelfX,this->goalSelfY)) >= 2){

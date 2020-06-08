@@ -122,6 +122,7 @@ namespace gazebo
 	    }
 	    public : void BallCallback(const robot_control::ModelState::ConstPtr &_msg){
 	    	this->ballPosition.Set(_msg->point.x,_msg->point.y);
+	    	this->ballHeight = _msg->point.z;
 	    	this->ballVelocity.Set(_msg->twist.linear.x,_msg->twist.linear.y,_msg->twist.linear.z);
 	    	this->defaultOrientation.Radian(atan2(this->ballPosition.Y() - this->position.Y(), this->ballPosition.X() - this->position.X()));
 	    	if(this->defaultOrientation.Radian() < 0){
@@ -286,9 +287,9 @@ namespace gazebo
 		    		
 		    	}else if(this->has_ball){
 		    		if(this->curBallPosTeam == 'B'){
-		    			moveAndShoot(3,1);	
+		    			moveAndShoot(2,2);	
 		    		}else{
-		    			moveAndShoot(-3,1);	
+		    			moveAndShoot(-2,-2);	
 		    		}
 		    		
 		    	}else{
@@ -349,7 +350,7 @@ namespace gazebo
 			
 			void checkBallPossesion(){
 				im::Vector2d edge(this->position.X() + this->radius * cos(this->rotation.Radian()),this->position.Y() + this->radius * sin(this->rotation.Radian()));
-				if(edge.Distance(this->ballPosition) - this->ballRadius <= 0.01){
+				if(edge.Distance(this->ballPosition) - this->ballRadius <= 0.01 and this->ballHeight <= 0.15){
 					this->has_ball = true;
 				}else{
 					this->has_ball = false;
@@ -372,7 +373,7 @@ namespace gazebo
 					double goalDistance = this->position.Distance(im::Vector2d(this->goalTargetX,this->goalTargetY));
 					speed *= goalDistance;
 
-					this->ballModel->SetWorldTwist(im::Vector3d(speed.X() * 0.8,speed.Y() * 0.8,goalDistance * 0.7),im::Vector3d(0,0,0));	
+					this->ballModel->SetWorldTwist(im::Vector3d(speed.X(),speed.Y(),goalDistance),im::Vector3d(0,0,0));	
 				}
 				
 			}
@@ -417,6 +418,8 @@ namespace gazebo
 	    	im::Vector2d ballPosition;
 
 	    	im::Vector3d ballVelocity;
+
+	    	double ballHeight;
 
 			im::Angle rotation;
 			im::Angle defaultOrientation;

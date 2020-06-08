@@ -1,6 +1,7 @@
 #include <functional>
 #include <ignition/math/Pose3.hh>
 #include "gazebo/physics/physics.hh"
+#include <ignition/math/Vector2.hh>
 #include "gazebo/common/common.hh"
 #include "gazebo/gazebo.hh"
 #include <thread>
@@ -53,23 +54,45 @@ namespace gazebo{
 			this->ballModel = this->world->ModelByName("ball");
 			publishBallMessage();
 			publishRobotsPosition();
-			if(checkGoal() or this->goal){
-				if(!this->goal){
-					if(this->ballModel->WorldPose().Pos().X() < -4.5){
-						this->startBallX = -0.5;
-					}else{
-						this->startBallX = 0.5;
-					}
-					this->timePause = time(NULL) + 3;
-					this->goal = true;	
+			if(checkGoal() and !this->reseting){
+				this->goal = true;
+				
+				if(this->ballModel->WorldPose().Pos().X() < -4.5){
+					this->startBallX = -0.5;
 				}else{
-					if(time(NULL) > this->timePause){
-						this->goal = false;
-						this->timePause = 0;
-						this->world->Reset();
-						this->world->ResetPhysicsStates();
-						this->ballModel->SetWorldPose(im::Pose3d(this->startBallX,0,0,0,0,0));
-					}
+					this->startBallX = 0.5;
+				}
+				this->timePause = time(NULL) + 3;
+				
+				this->reseting = true;	
+				
+			}else if(this->reseting and this->goal){
+				if(time(NULL) > this->timePause){
+					this->goal = false;
+					this->reseting = false;
+					this->timePause = 0;
+					this->world->Reset();
+					this->world->ResetPhysicsStates();
+					this->ballModel->SetWorldPose(im::Pose3d(this->startBallX,0,0,0,0,0));
+					
+				}
+			}else if(checkOut() and !this->reseting){
+				this->out = true;
+				this->reseting = true;
+				this->timePause = time(NULL) + 3;
+				this->ballLastPosition.Set(this->ballModel->WorldPose().Pos().X(),this->ballModel->WorldPose().Pos().Y());
+				if(this->ballLastPosition.X() < -4.5) this->ballLastPosition.X(-4.4);
+				if(this->ballLastPosition.X() > 4.5) this->ballLastPosition.X(4.4);
+				if(this->ballLastPosition.Y() < -3) this->ballLastPosition.Y(-2.9);
+				if(this->ballLastPosition.Y() > 3) this->ballLastPosition.Y(2.9);
+			}else if(this->reseting and this->out){
+				if(time(NULL) > this->timePause){
+					this->out = false;
+					this->timePause = 0;
+					this->reseting = false;
+					this->world->Reset();
+					this->world->ResetPhysicsStates();
+					this->ballModel->SetWorldPose(im::Pose3d(this->ballLastPosition.X(),this->ballLastPosition.Y(),0,0,0,0));
 				}
 			}
 
@@ -92,6 +115,12 @@ namespace gazebo{
 			double ballY = this->ballModel->WorldPose().Pos().Y();
 
 			return (ballY < 0.8 and ballY > -0.8 and (ballX < -4.5 or ballX > 4.5));
+		}
+
+		public : bool checkOut(){
+			double ballX = this->ballModel->WorldPose().Pos().X();
+			double ballY = this->ballModel->WorldPose().Pos().Y();
+			return (ballY > 3 or ballY < -3 or ballX > 4.5 or ballX < -4.5);
 		}
 		public :void QueueThread(){
 			static const double timeout = 0.01;
@@ -160,9 +189,16 @@ namespace gazebo{
 			int timeFlag;
 
 			bool goal = false;
+			bool out = false;
 			int timePause = 0;
 
 			double startBallX;
+
+			double ballRadius = 0.043;
+
+			im::Vector2d ballLastPosition;
+
+			bool reseting = false;
 			
 		
 	};
