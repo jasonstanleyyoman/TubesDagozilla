@@ -8,6 +8,8 @@
 #include <cmath>
 #include <ctime>
 #include <thread>
+#include <time.h>
+#include <stdlib.h>
 #include <bits/stdc++.h>
 #include <robot_control/ModelState.h>
 #include <std_msgs/String.h>
@@ -36,7 +38,6 @@ namespace gazebo
 			this->robotName = this->model->GetName();
 			this->team = this->robotName[0];
 
-			
 
 			if(this->team == 'A'){
 				this->goalTargetX = -4.5;
@@ -48,6 +49,11 @@ namespace gazebo
 			this->goalTargetY = 0;
 			this->goalSelfY = 0;
 			
+			this->enemyPosWings.push_back(0);
+			this->enemyPosWings.push_back(0);
+			this->enemyPosWings.push_back(0);
+
+			this->targetWing = -1;
 
 			this->updateConnection = event::Events::ConnectWorldUpdateBegin(
 			  std::bind(&RobotPlugin::OnUpdate, this));
@@ -65,7 +71,7 @@ namespace gazebo
 			ros::SubscribeOptions so = ros::SubscribeOptions::create<robot_control::ModelState>("/ball_position",1,boost::bind(&RobotPlugin::BallCallback, this, _1),ros::VoidPtr(), &this->rosQueue);
 			this->rosSub = this->rosNode->subscribe(so);
 
-			so = ros::SubscribeOptions::create<robot_control::BallPos>("/ball_possesion_master",1,boost::bind(&RobotPlugin::ballPosCallback, this, _1),ros::VoidPtr(), &this->rosQueue);
+			so = ros::SubscribeOptions::create<robot_control::BallPos>("/ball_possesion_master",1,boost::bind(&RobotPlugin::BallPosCallback, this, _1),ros::VoidPtr(), &this->rosQueue);
 			this->ballPosSub = this->rosNode->subscribe(so);
 
 			so = ros::SubscribeOptions::create<robot_control::RobotsPosition>("/robots_position",1,boost::bind(&RobotPlugin::RobotsPositionCallback, this, _1),ros::VoidPtr(), &this->rosQueue);
@@ -92,31 +98,21 @@ namespace gazebo
 	      }
 
 	      checkBallPossesion();
+	      updateWing();
 	      if(this->has_ball){
 	      	std_msgs::String msg;
 	      	msg.data = this->robotName;
 	      	this->rosPub.publish(msg);
 	      }
 
-	      if(this->has_ball and !this->readyToShoot){
+	      if(this->has_ball and !this->shooting){
 	      	moveBall();
 	      }
-
-
-	      if(this->readyToShoot){
-	      	
-	      	if(this->timeEndShoot == 0){
-	      		this->timeEndShoot = time(NULL) + 1;	
-	      		shoot();
-	      	}else{
-	      		if(time(NULL) > this->timeEndShoot){
-	      			this->readyToShoot = false;
-	      			this->timeEndShoot = 0;
-	      		}
-	      	}
-	      	
-	      }
-	      
+		  if(this->shooting and time(NULL) > this->timeEndShoot){
+		  	this->shooting = false;
+		  	this->timeEndShoot = 0;
+		  	this->decided = false;
+		  }
 	    }
 	    public : void BallCallback(const robot_control::ModelState::ConstPtr &_msg){
 	    	this->ballPosition.Set(_msg->point.x,_msg->point.y);
@@ -129,7 +125,7 @@ namespace gazebo
 	    	decideMove();
 	    }
 		
-	    public : void ballPosCallback(const robot_control::BallPos::ConstPtr &msg){
+	    public : void BallPosCallback(const robot_control::BallPos::ConstPtr &msg){
 	    	if(msg->robotName == "None"){
 	    		this->has_ball = false;
 	    		this->ballOwner = "None";
@@ -143,19 +139,76 @@ namespace gazebo
 	    		}
 	    	}
 	    	decideMove();
-	    	
 	    }
-
-
-
-
-	    public : void RobotsPositionCallback(const robot_control::RobotsPosition::ConstPtr &msg){
+		public : void RobotsPositionCallback(const robot_control::RobotsPosition::ConstPtr &msg){
+			int wings0 = 0;
+	    	int wings1 = 0;
+	    	int wings2 = 0;
 	    	for(int i = 0; i < msg->robotsPos.size();i++){
+	    		
 	    		this->robotsPosition[msg->robotsPos[i].robotName] = im::Vector2d(msg->robotsPos[i].x,msg->robotsPos[i].y);
+	    		
+	    		if(msg->robotsPos[i].robotName[0] != this->team and msg->robotsPos[i].robotName[6] != 'K'){
+	    			if(msg->robotsPos[i].y < -1){
+	    				wings2 += 1;
+	    			}else if(msg->robotsPos[i].y < 1){
+	    				wings1 += 1;
+	    			}else{
+	    				wings0 += 1;
+	    			}
+	    		}
 	    	}
+	    	this->enemyPosWings[0] = wings0;
+	    	this->enemyPosWings[1] = wings1;
+	    	this->enemyPosWings[2] = wings2;
 	    }
 		
 		private:
+			void decideMove(){
+				if(!this->has_ball and this->ballOwnerTeam ==  'N'){
+					if(checkClosest(this->ballPosition.X(),this->ballPosition.Y())){
+						moveToBall();	
+					}else{
+						if(abs(this->goalTargetX - this->ballPosition.X()) < abs(this->goalSelfX - this->ballPosition.X())){
+							attack();
+						}else{
+							defend();
+						}
+					}
+		    	}else if(this->has_ball){
+		    		if(!this->decided){
+			    		double x;
+			    		double y;
+			    		int weakestWings = checkWeakest();
+			    		if(weakestWings == 0){
+			    			x = randomNumber(2,3);
+			    			y = randomNumber(1,2);
+			    			if(this->goalTargetX < 0) x *= -1;
+			    		}else if(weakestWings == 1){
+			    			x = randomNumber(1,3);
+			    			y = randomNumber(-1,1);
+			    			if(this->goalTargetX < 0) x *= -1;
+			    		}else if(weakestWings == 2){
+			    			x = randomNumber(2,3);
+			    			y = randomNumber(-1,-2);
+			    			if(this->goalTargetX < 0) x *= -1;
+			    		}
+			    		this->decidedX = x;
+			    		this->decidedY = y;
+			    		this->decided = true;
+			    		moveAndShoot(x,y);	
+		    		}else{
+		    			moveAndShoot(this->decidedX,this->decidedY);
+		    		}
+		    		
+		    	}else{
+		    		if(this->ballOwnerTeam != this->team){
+		    			defend();
+		    		}else{
+		    			attack();
+		    		}
+		    	}
+			}
 			void moveTo(double x, double y,double orientation){
 				im::Vector2d target(x,y);
 				im::Vector2d desired = target - this->position;
@@ -188,7 +241,6 @@ namespace gazebo
 							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),this->maxAngularSpeed);	
 						}
 					}
-					
 				}
 			}
 				
@@ -266,38 +318,11 @@ namespace gazebo
 					}
 				}
 				if(this->position.Distance(target) <= 0.01 and abs(desiredOrientation.Radian() - this->rotation.Radian()) < 0.1){
-						this->readyToShoot = true;
+						shoot();
 				}
 			}
 
-			void decideMove(){
-				if(!this->has_ball and this->ballOwnerTeam ==  'N'){
-					if(checkClosest(this->ballPosition.X(),this->ballPosition.Y())){
-						moveToBall();	
-					}else{
-						if(abs(this->goalTargetX - this->ballPosition.X()) < abs(this->goalSelfX - this->ballPosition.X())){
-							attack();
-						}else{
-
-							defend();
-						}
-					}
-		    		
-		    	}else if(this->has_ball){
-		    		if(this->ballOwnerTeam == 'B'){
-		    			moveAndShoot(2,2);	
-		    		}else{
-		    			moveAndShoot(-2,-2);	
-		    		}
-		    		
-		    	}else{
-		    		if(this->ballOwnerTeam != this->team){
-		    			defend();
-		    		}else{
-		    			attack();
-		    		}
-		    	}
-			}
+			
 
 			void defend(){
 				if(checkClosest(this->ballOwnerPos.X(),this->ballOwnerPos.Y())){
@@ -312,11 +337,57 @@ namespace gazebo
 				}
 			}
 			void attack(){
-				if(this->team == 'A'){
-					moveTo(-1,-1,this->defaultOrientation.Radian());
+				
+				if(this->targetWing == -1){
+					int ballOwnerWing;
+					if(this->ballOwnerPos.Y() < -1){
+						ballOwnerWing = 2;
+					}else if(this->ballOwnerPos.Y() < 1){
+						ballOwnerWing = 1;
+					}else{
+						ballOwnerWing = 0;
+					}
+					int weakestWing = checkWeakest(ballOwnerWing);
+					this->targetWing = weakestWing;
+					double x;
+		    		double y;
+		    		if(weakestWing == 0){
+		    			x = randomNumber(2,3);
+		    			y = randomNumber(1,2);
+		    			if(this->goalTargetX < 0) x *= -1;
+		    		}else if(weakestWing == 1){
+		    			x = randomNumber(1,3);
+		    			y = randomNumber(-1,1);
+		    			if(this->goalTargetX < 0) x *= -1;
+		    		}else if(weakestWing == 2){
+		    			x = randomNumber(2,3);
+		    			y = randomNumber(-1,-2);
+		    			if(this->goalTargetX < 0) x *= -1;
+		    		}
+		    		this->targetX = x;
+		    		this->targetY = y;
+		    		moveTo(x,y,this->defaultOrientation.Radian());
 				}else{
-					moveTo(1,-1,this->defaultOrientation.Radian());
+					if(this->position.Distance(im::Vector2d(this->targetX,this->targetY)) < 0.01){
+						this->targetWing = -1;
+					}else{
+						int ballOwnerWing;
+						if(this->ballOwnerPos.Y() < -1){
+							ballOwnerWing = 2;
+						}else if(this->ballOwnerPos.Y() < 1){
+							ballOwnerWing = 1;
+						}else{
+							ballOwnerWing = 0;
+						}
+						int weakestWing = checkWeakest(ballOwnerWing);
+						if(weakestWing != this->targetWing){
+							this->targetWing = -1;
+						}else{
+							moveTo(this->targetX,this->targetY,this->defaultOrientation.Radian());
+						}
+					}
 				}
+
 			}
 
 
@@ -361,17 +432,61 @@ namespace gazebo
 			}
 
 			void shoot(){
-				if(this->has_ball){
+				if(this->has_ball and this->timeEndShoot == 0 and !this->shooting){
 					this->has_ball = false;
 					this->ballOwner = "None";
 					this->ballOwnerTeam = 'N';
 					im::Vector2d speed(cos(this->rotation.Radian()),sin(this->rotation.Radian()));
 					double goalDistance = this->ballPosition.Distance(im::Vector2d(this->goalTargetX,this->goalTargetY));
 					speed *= goalDistance;
-
+					if(goalDistance <= 3){
+						double multiplier = translate(goalDistance,0,3,1,1.5,true);
+						speed *= multiplier;
+					}
 					this->ballModel->SetWorldTwist(im::Vector3d(speed.X(),speed.Y(),goalDistance),im::Vector3d(0,0,0));	
+					this->timeEndShoot = time(NULL) + 1;
+					this->shooting = true;
 				}
-				
+			}
+
+			double translate(double value,double leftMin, double leftMax, double rightMin, double rightMax, bool reverse){
+				double result = (value - leftMin) / (leftMax - leftMin) * (rightMax - rightMin);
+				if(reverse){
+					result = rightMax - rightMin - result;
+				}
+				return rightMin + result;
+			}
+			double randomNumber(double fMin, double fMax){
+				srand(time(NULL));
+			    double f = (double)rand() / RAND_MAX;
+			    return fMin + f * (fMax - fMin);
+			}
+			int checkWeakest(int exclude = -1){
+				int minimum = 4;
+	    		std::vector<int> weakest =  {};
+	    		for(int i = 0; i < this->enemyPosWings.size();i++){
+	    			if(this->enemyPosWings[i] <= minimum and i != exclude){
+	    				minimum = this->enemyPosWings[i];
+	    			}
+	    		}
+	    		for(int i = 0; i < this->enemyPosWings.size();i++){
+	    			if(this->enemyPosWings[i] == minimum and i != exclude){
+	    				weakest.push_back(i);
+	    			}
+	    		}
+	    		srand(time(NULL));
+	    		int weakestIndex = (rand() % weakest.size());
+	    		int weakestWings = weakest[weakestIndex];
+	    		return weakestWings;
+			}
+			void updateWing(){
+				if(this->position.Y() < -1){
+					this->currentWing = 2;
+				}else if(this->position.Y() < 1){
+					this->currentWing = 1;
+				}else{
+					this->currentWing = 0;
+				}
 			}
 
 
@@ -437,8 +552,11 @@ namespace gazebo
 	    	double ballRadius = 0.043;
 
 	    	bool has_ball = false;
-	    	bool readyToShoot = false;
+	    	bool shooting = false;
+
 	    	bool decided = false;
+	    	double decidedX;
+	    	double decidedY;
 	    	
 	    	int timeEndShoot = 0;
 
@@ -447,6 +565,12 @@ namespace gazebo
 
 	    	double goalSelfX;
 	    	double goalSelfY;
+
+	    	std::vector<int> enemyPosWings;
+
+	    	int targetWing = -1;
+	    	double targetX,targetY;
+	    	int currentWing;
 	};
 	GZ_REGISTER_MODEL_PLUGIN(RobotPlugin)
 }

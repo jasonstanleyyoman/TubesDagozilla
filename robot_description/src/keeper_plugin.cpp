@@ -69,7 +69,7 @@ namespace gazebo
 
 
 	    	bool has_ball = false;
-	    	bool readyToShoot = false;
+	    	bool shooting = false;
 
 	    	int timeEndShoot = 0;
 
@@ -140,11 +140,11 @@ namespace gazebo
 			      	this->rosPub.publish(msg);
 	      		}
 
-	      		if(this->has_ball and !this->readyToShoot){
+	      		if(this->has_ball and !this->shooting){
 			    	moveBall();
 			    }
-			    if(this->readyToShoot and time(NULL) > this->timeEndShoot){
-			    	this->readyToShoot = false;
+			    if(this->shooting and time(NULL) > this->timeEndShoot){
+			    	this->shooting = false;
 			    	this->timeEndShoot = 0;
 			    }
 	    	}
@@ -306,7 +306,7 @@ namespace gazebo
 						
 					}
 					moveTo(target.X(),target.Y(),this->defaultOrientation.Radian());
-				}else if(this->has_ball and !this->readyToShoot){
+				}else if(this->has_ball and !this->shooting){
 					im::Vector2d longest(0,0);
 					double longestDistance = -1;
 					for(auto const&robot : this->robotsPosition){
@@ -327,15 +327,16 @@ namespace gazebo
 					desiredOrientation += 2 * pi;
 				}
 				if(abs(desiredOrientation.Radian() - this->rotation.Radian()) < 0.01){
-					this->readyToShoot = true;
-					if(this->has_ball and this->readyToShoot){
+					this->shooting = true;
+					if(this->has_ball and this->shooting){
 						this->has_ball = true;
 						this->curBallPos = "None";
 						this->curBallPosTeam = 'N';
 						im::Vector2d speed(cos(this->rotation.Radian()),sin(this->rotation.Radian()));
 						double goalDistance = this->position.Distance(im::Vector2d(x,y));
 						speed *= goalDistance;
-						this->ballModel->SetWorldTwist(im::Vector3d(speed.X() * 0.8,speed.Y() * 0.8,goalDistance * 0.7),im::Vector3d(0,0,0));
+						
+						this->ballModel->SetWorldTwist(im::Vector3d(speed.X() * 1.25,speed.Y() * 1.25,goalDistance * 1.3),im::Vector3d(0,0,0));
 						this->timeEndShoot = time(NULL) + 1;
 					}
 				}else{
@@ -355,6 +356,13 @@ namespace gazebo
 				}
 				
 
+			}
+			double translate(double value,double leftMin, double leftMax, double rightMin, double rightMax, bool reverse){
+				double result = (value - leftMin) / (leftMax - leftMin) * (rightMax - rightMin);
+				if(reverse){
+					result = rightMax - rightMin - result;
+				}
+				return rightMin + result;
 			}
 	};
 	GZ_REGISTER_MODEL_PLUGIN(KeeperPlugin)
