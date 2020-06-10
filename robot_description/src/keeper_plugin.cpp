@@ -288,7 +288,7 @@ namespace gazebo
 				if(this->ballPosition.Distance(im::Vector2d(this->goalSelfX,this->goalSelfY)) < 2 and this->curBallPosTeam == 'N' and !this->has_ball){
 					moveToBall();
 				}else if(this->ballPosition.Distance(im::Vector2d(this->goalSelfX,this->goalSelfY)) < 2 and this->curBallPosTeam != this->team and !this->has_ball){
-					moveTo(this->ballPosition.X() + 0.25 * (this->goalSelfX - this->ballPosition.X()), 0.75 * this->ballPosition.Y(),0);
+					moveTo(this->ballPosition.X() + 0.25 * (this->goalSelfX - this->ballPosition.X()), 0.75 * this->ballPosition.Y(),this->defaultOrientation.Radian());
 				}else if(this->ballPosition.Distance(im::Vector2d(this->goalSelfX,this->goalSelfY)) >= 2){
 					im::Vector2d target(this->goalSelfX + 0.25 * (this->ballPosition.X() - this->goalSelfX), 0.25 * this->ballPosition.Y());
 					if(target.Distance(im::Vector2d(this->goalSelfX,this->goalSelfY)) >= 2){

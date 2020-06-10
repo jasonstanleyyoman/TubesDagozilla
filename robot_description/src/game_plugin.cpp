@@ -54,18 +54,14 @@ namespace gazebo{
 			this->ballModel = this->world->ModelByName("ball");
 			publishBallMessage();
 			publishRobotsPosition();
+
+
 			if(checkGoal() and !this->reseting){
 				this->goal = true;
-				
-				if(this->ballModel->WorldPose().Pos().X() < -4.5){
-					this->startBallX = -0.5;
-				}else{
-					this->startBallX = 0.5;
-				}
+				if(this->ballModel->WorldPose().Pos().X() < -4.5) this->startBallX = -0.5 ;
+				else this->startBallX = 0.5;
 				this->timePause = time(NULL) + 3;
-				
 				this->reseting = true;	
-				
 			}else if(this->reseting and this->goal){
 				if(time(NULL) > this->timePause){
 					this->goal = false;
@@ -74,7 +70,6 @@ namespace gazebo{
 					this->world->Reset();
 					this->world->ResetPhysicsStates();
 					this->ballModel->SetWorldPose(im::Pose3d(this->startBallX,0,0,0,0,0));
-					
 				}
 			}else if(checkOut() and !this->reseting){
 				this->out = true;
@@ -113,8 +108,7 @@ namespace gazebo{
 		public : bool checkGoal(){
 			double ballX = this->ballModel->WorldPose().Pos().X();
 			double ballY = this->ballModel->WorldPose().Pos().Y();
-
-			return (ballY < 0.8 and ballY > -0.8 and (ballX < -4.5 or ballX > 4.5));
+			return (ballY < 0.5 and ballY > -0.5 and (ballX < -4.5 or ballX > 4.5));
 		}
 
 		public : bool checkOut(){

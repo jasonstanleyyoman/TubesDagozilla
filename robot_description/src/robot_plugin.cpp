@@ -2,23 +2,21 @@
 #include <gazebo/gazebo.hh>
 #include <gazebo/physics/physics.hh>
 #include <gazebo/common/common.hh>
-#include <ignition/math/Vector3.hh>
-#include <ignition/math/Vector2.hh>
+#include <ros/ros.h>
+#include <ros/callback_queue.h>
+#include <ros/subscribe_options.h>
+#include <cmath>
 #include <ctime>
 #include <thread>
-#include "ros/callback_queue.h"
-#include "ros/subscribe_options.h"
-#include <ros/ros.h>
-#include "bits/stdc++.h"
-#include "robot_control/ModelState.h"
-#include "std_msgs/String.h"
-#include "robot_control/BallPos.h"
-#include "robot_control/RobotsPosition.h"
+#include <bits/stdc++.h>
+#include <robot_control/ModelState.h>
+#include <std_msgs/String.h>
+#include <robot_control/BallPos.h>
+#include <robot_control/RobotsPosition.h>
+#include <ignition/math/Vector3.hh>
+#include <ignition/math/Vector2.hh>
 #include <ignition/math/Pose3.hh>
-#include <cmath>
-
 #include <ignition/math/Angle.hh>
-
 
 #define im ignition::math
 #define pi 3.141593
@@ -128,17 +126,18 @@ namespace gazebo
 	    	if(this->defaultOrientation.Radian() < 0){
 	    		this->defaultOrientation += 2 * pi;
 	    	}
+	    	decideMove();
 	    }
 		
 	    public : void ballPosCallback(const robot_control::BallPos::ConstPtr &msg){
 	    	if(msg->robotName == "None"){
 	    		this->has_ball = false;
-	    		this->curBallPos = "None";
-	    		this->curBallPosTeam = 'N';
+	    		this->ballOwner = "None";
+	    		this->ballOwnerTeam = 'N';
 	    	}else{
-	    		this->curBallPos = msg->robotName;
-	    		this->curBallPosTeam = msg->robotName[0];	
-	    		this->ballOwner.Set(msg->x,msg->y);
+	    		this->ballOwner = msg->robotName;
+	    		this->ballOwnerTeam = msg->robotName[0];	
+	    		this->ballOwnerPos.Set(msg->x,msg->y);
 	    		if(msg->robotName == this->robotName){
 	    			this->has_ball = true;
 	    		}
@@ -146,6 +145,10 @@ namespace gazebo
 	    	decideMove();
 	    	
 	    }
+
+
+
+
 	    public : void RobotsPositionCallback(const robot_control::RobotsPosition::ConstPtr &msg){
 	    	for(int i = 0; i < msg->robotsPos.size();i++){
 	    		this->robotsPosition[msg->robotsPos[i].robotName] = im::Vector2d(msg->robotsPos[i].x,msg->robotsPos[i].y);
@@ -216,15 +219,15 @@ namespace gazebo
 				}else{
 					if(desiredOrientation.Radian() - this->rotation.Radian() > 0){
 						if(desiredOrientation.Radian() - this->rotation.Radian() - pi > 0){
-							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-1 * this->maxAngularSpeed);	
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-1 * this->maxAngularSpeed - 1);	
 						}else{
-							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),this->maxAngularSpeed);	
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),this->maxAngularSpeed + 1);	
 						}
 					}else{
 						if(desiredOrientation.Radian() - this->rotation.Radian() + pi > 0){
-							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-1 * this->maxAngularSpeed);	
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),-1 * this->maxAngularSpeed - 1);	
 						}else{
-							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),this->maxAngularSpeed);	
+							applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),this->maxAngularSpeed + 1);	
 						}
 					}
 				}
@@ -243,9 +246,7 @@ namespace gazebo
 				im::Vector2d newSpeed(xSpeed,ySpeed);
 
 				im::Angle desiredOrientation(atan2(this->goalTargetY - y,this->goalTargetX - x));
-				if(desiredOrientation.Radian() < 0){
-					desiredOrientation += 2 * pi;
-				}
+				if(desiredOrientation.Radian() < 0) desiredOrientation += 2 * pi;
 
 				if(abs(desiredOrientation.Radian() - this->rotation.Radian()) < 0.1){
 					applyLinearAngularSpeed(newSpeed.X(),newSpeed.Y(),0);
@@ -264,16 +265,13 @@ namespace gazebo
 						}
 					}
 				}
-
 				if(this->position.Distance(target) <= 0.01 and abs(desiredOrientation.Radian() - this->rotation.Radian()) < 0.1){
 						this->readyToShoot = true;
 				}
-
-
 			}
 
 			void decideMove(){
-				if(!this->has_ball and this->curBallPosTeam ==  'N'){
+				if(!this->has_ball and this->ballOwnerTeam ==  'N'){
 					if(checkClosest(this->ballPosition.X(),this->ballPosition.Y())){
 						moveToBall();	
 					}else{
@@ -286,14 +284,14 @@ namespace gazebo
 					}
 		    		
 		    	}else if(this->has_ball){
-		    		if(this->curBallPosTeam == 'B'){
+		    		if(this->ballOwnerTeam == 'B'){
 		    			moveAndShoot(2,2);	
 		    		}else{
 		    			moveAndShoot(-2,-2);	
 		    		}
 		    		
 		    	}else{
-		    		if(this->curBallPosTeam != this->team){
+		    		if(this->ballOwnerTeam != this->team){
 		    			defend();
 		    		}else{
 		    			attack();
@@ -302,15 +300,13 @@ namespace gazebo
 			}
 
 			void defend(){
-				if(checkClosest(this->ballOwner.X(),this->ballOwner.Y())){
-					moveTo(this->ballOwner.X() + 0.25 * (this->goalSelfX - this->ballOwner.X()), 0.75 * this->ballOwner.Y(),this->defaultOrientation.Radian());
+				if(checkClosest(this->ballOwnerPos.X(),this->ballOwnerPos.Y())){
+					moveTo(this->ballOwnerPos.X() + 0.25 * (this->goalSelfX - this->ballOwnerPos.X()), 0.75 * this->ballOwnerPos.Y(),this->defaultOrientation.Radian());
 					
-				}else if(this->curBallPosTeam == 'N'){
-					moveTo(this->goalSelfX,0,this->defaultOrientation.Radian());
-				}else if(this->curBallPosTeam != this->team and this->curBallPosTeam != 'N'){
+				}else if(this->ballOwnerTeam != this->team and this->ballOwnerTeam != 'N'){
 					for(auto const&robot : this->robotsPosition){
-						if(robot.first[0] != this->team and robot.first != this->curBallPos and robot.first[6] != 'K'){
-							moveTo(this->ballOwner.X() + 0.75 * (robot.second.X() - this->ballOwner.X()), this->ballOwner.Y() + 0.75 * (robot.second.Y() - this->ballOwner.Y()),this->defaultOrientation.Radian());
+						if(robot.first[0] != this->team and robot.first != this->ballOwner and robot.first[6] != 'K'){
+							moveTo(this->ballOwnerPos.X() + 0.75 * (robot.second.X() - this->ballOwnerPos.X()), this->ballOwnerPos.Y() + 0.75 * (robot.second.Y() - this->ballOwnerPos.Y()),this->defaultOrientation.Radian());
 						}
 					}
 				}
@@ -367,10 +363,10 @@ namespace gazebo
 			void shoot(){
 				if(this->has_ball){
 					this->has_ball = false;
-					this->curBallPos = "None";
-					this->curBallPosTeam = 'N';
+					this->ballOwner = "None";
+					this->ballOwnerTeam = 'N';
 					im::Vector2d speed(cos(this->rotation.Radian()),sin(this->rotation.Radian()));
-					double goalDistance = this->position.Distance(im::Vector2d(this->goalTargetX,this->goalTargetY));
+					double goalDistance = this->ballPosition.Distance(im::Vector2d(this->goalTargetX,this->goalTargetY));
 					speed *= goalDistance;
 
 					this->ballModel->SetWorldTwist(im::Vector3d(speed.X(),speed.Y(),goalDistance),im::Vector3d(0,0,0));	
@@ -424,14 +420,14 @@ namespace gazebo
 			im::Angle rotation;
 			im::Angle defaultOrientation;
 
-			im::Vector2d ballOwner;
+			im::Vector2d ballOwnerPos;
 
 	    	std::string robotName;
 
 	    	char team;
 
-	    	std::string curBallPos;
-	    	char curBallPosTeam;
+	    	std::string ballOwner;
+	    	char ballOwnerTeam;
 
 	    	std::map<std::string,im::Vector2d> robotsPosition;
 
@@ -442,6 +438,7 @@ namespace gazebo
 
 	    	bool has_ball = false;
 	    	bool readyToShoot = false;
+	    	bool decided = false;
 	    	
 	    	int timeEndShoot = 0;
 
